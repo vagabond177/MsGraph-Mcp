@@ -213,13 +213,21 @@ export class GraphClient {
   ): Promise<any> {
     const basePath = mailbox ? `/users/${mailbox}` : '/me';
 
-    // For token efficiency, only fetch contentBytes if explicitly requested
-    let select = 'id,name,contentType,size,isInline,lastModifiedDateTime';
+    // Note: contentBytes is only available on #microsoft.graph.fileAttachment
+    // We can't use $select for it on the base attachment type
+    // When includeContent is false, we select minimal fields for token efficiency
+    // When includeContent is true, we don't use $select so all fields are returned
+
+    let endpoint: string;
     if (includeContent) {
-      select += ',contentBytes';
+      // Don't use $select - fetch all fields including contentBytes for fileAttachments
+      endpoint = `${basePath}/messages/${messageId}/attachments`;
+    } else {
+      // Token efficient - only fetch metadata
+      const select = 'id,name,contentType,size,isInline,lastModifiedDateTime';
+      endpoint = `${basePath}/messages/${messageId}/attachments?$select=${select}`;
     }
 
-    const endpoint = `${basePath}/messages/${messageId}/attachments?$select=${select}`;
     const response = await this.executeRequest<any>(endpoint);
 
     // Graph API returns attachments in a 'value' array
