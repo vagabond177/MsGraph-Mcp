@@ -33,3 +33,4 @@ token.json
 # Logs
 logs/
 *.log
+coverage/

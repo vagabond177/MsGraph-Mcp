@@ -26,19 +26,24 @@ Microsoft Graph API
 M365 Services (Exchange, Planner, Calendar, Teams, SharePoint)
 ```
 
-## Phase 1: Email Search Tools (Current)
+## Available Tools
 
-Initial MCP tools:
+### Phase 1: Email Search Tools
+
 - `mcp__msgraph__search_emails_by_entities` - Batch search by company/entity names
 - `mcp__msgraph__search_emails` - General email search with KQL syntax
 - `mcp__msgraph__get_email` - Read specific email by ID
 - `mcp__msgraph__list_mail_folders` - List mailbox folder structure
 
+### Phase 4.5: Copilot-Powered Content Search
+
+- `mcp__msgraph__search_content` - Search across SharePoint, OneDrive using natural language (requires Copilot license)
+
 ## Future Phases
 
 - **Phase 2:** Tasks/Planner integration
 - **Phase 3:** Calendar access
-- **Phase 4:** Teams and SharePoint
+- **Phase 5:** Teams integration
 
 ## Documentation
 

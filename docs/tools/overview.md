@@ -17,7 +17,7 @@
 
 ## Available Tools
 
-### Phase 1: Email Search (Current)
+### Phase 1: Email Search
 
 | Tool | Purpose | Input | Output |
 |------|---------|-------|--------|
@@ -27,6 +27,15 @@
 | `mcp__msgraph__list_mail_folders` | List mailbox folders | (none) | Folder tree |
 
 **Details:** See `email-search.md`
+
+### Phase 4.5: Copilot Content Search
+
+| Tool | Purpose | Input | Output |
+|------|---------|-------|--------|
+| `mcp__msgraph__search_content` | AI-powered content search | Natural language query | Relevance-ranked excerpts |
+
+**Details:** See `copilot-search.md`
+**Requirements:** Microsoft 365 Copilot license
 
 ### Phase 2: Tasks/Planner (Future)
 
@@ -54,8 +63,8 @@
 
 | Tool | Purpose | Status |
 |------|---------|--------|
-| `mcp__msgraph__search_documents` | Search SharePoint docs | Planned |
 | `mcp__msgraph__get_document` | Download document | Planned |
+| `mcp__msgraph__list_sites` | List SharePoint sites | Planned |
 
 ---
 

@@ -80,9 +80,13 @@ _(You can customize this name)_
 5. Search and select:
    - `Mail.Read` (under Mail)
    - `User.Read` (under User)
+   - `Files.Read.All` (under Files) - _For Copilot content search_
+   - `Sites.Read.All` (under Sites) - _For Copilot content search_
 6. Click "Add permissions"
 
-**Result:** Two permissions added
+**Result:** Four permissions added
+
+**Note:** Files.Read.All and Sites.Read.All are required for the Copilot content search feature (`mcp__msgraph__search_content`). If you only need email search, you can skip these permissions.
 
 ### Step 5: Grant Admin Consent (if required)
 
