@@ -247,7 +247,7 @@ class MsGraphMcpServer {
             description:
               'Download email attachment directly to a file. This is the most token-efficient way ' +
               'to download attachments - the file is written directly to disk and only the file path ' +
-              'is returned (~10 tokens). No content flows through Claude\'s context.',
+              "is returned (~10 tokens). No content flows through Claude's context.",
             inputSchema: {
               type: 'object',
               properties: {
@@ -547,7 +547,9 @@ class MsGraphMcpServer {
           throw new Error(`Attachment not found: ${uri} (may have expired from cache)`);
         }
 
-        logger.debug(`Returning attachment ${attachment.name} (${this.formatBytes(attachment.size)})`);
+        logger.debug(
+          `Returning attachment ${attachment.name} (${this.formatBytes(attachment.size)})`
+        );
 
         // Return attachment with full content
         return {

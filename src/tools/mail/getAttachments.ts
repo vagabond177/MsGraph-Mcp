@@ -29,11 +29,7 @@ export class GetAttachments {
       const attachments = await this.graphClient.getAttachments(messageId, includeContent, mailbox);
 
       // Process attachments to token-efficient format
-      const processedAttachments = this.processAttachments(
-        attachments,
-        includeContent,
-        messageId
-      );
+      const processedAttachments = this.processAttachments(attachments, includeContent, messageId);
 
       logger.info(`Found ${processedAttachments.length} attachment(s) for email ${messageId}`);
 
@@ -79,7 +75,9 @@ export class GetAttachments {
       if (includeContent && att.contentBytes) {
         const cacheId = this.resultCache.setAttachment(messageId, att.id, att);
         detail.resourceUri = `attachment://${cacheId}`;
-        logger.debug(`Cached attachment ${att.name} (${this.formatBytes(att.size)}) as ${detail.resourceUri}`);
+        logger.debug(
+          `Cached attachment ${att.name} (${this.formatBytes(att.size)}) as ${detail.resourceUri}`
+        );
       }
 
       return detail;

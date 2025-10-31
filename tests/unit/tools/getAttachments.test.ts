@@ -259,7 +259,10 @@ describe('GetAttachments', () => {
       const attachments = [
         createMockAttachment({ name: 'document.pdf', contentType: 'application/pdf' }),
         createMockAttachment({ name: 'image.jpg', contentType: 'image/jpeg' }),
-        createMockAttachment({ name: 'spreadsheet.xlsx', contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+        createMockAttachment({
+          name: 'spreadsheet.xlsx',
+          contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        }),
       ];
 
       mockGraphClient.getAttachments.mockResolvedValue(attachments);
@@ -271,7 +274,9 @@ describe('GetAttachments', () => {
       expect(result).toHaveLength(3);
       expect(result[0].contentType).toBe('application/pdf');
       expect(result[1].contentType).toBe('image/jpeg');
-      expect(result[2].contentType).toBe('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      expect(result[2].contentType).toBe(
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      );
     });
   });
 });
