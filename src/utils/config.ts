@@ -11,8 +11,8 @@ import { ServerConfig, AuthConfig } from '../types/index.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// Project root is two levels up from src/utils/ (or dist/utils/ when compiled)
-const projectRoot = join(__dirname, '..', '..');
+// Project root is two levels up from src/utils/ (or three levels up from dist/src/utils/ when compiled)
+const projectRoot = join(__dirname, '..', '..', '..');
 
 // Load environment variables from .env file in project root
 const envPath = join(projectRoot, '.env');
