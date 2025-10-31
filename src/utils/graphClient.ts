@@ -7,8 +7,6 @@ import {
   GraphBatchRequest,
   GraphBatchResult,
   GraphError,
-  RateLimitError,
-  RateLimitInfo,
   CopilotRetrievalRequest,
   CopilotRetrievalResponse,
 } from '../types/index.js';
@@ -29,8 +27,6 @@ export class GraphClient {
    * Initialize the Graph client
    */
   async initialize(): Promise<void> {
-    const accessToken = await this.authenticator.getAccessToken();
-
     this.client = Client.init({
       authProvider: async (done) => {
         try {
@@ -61,7 +57,7 @@ export class GraphClient {
 
     for (let attempt = 0; attempt < this.maxRetries; attempt++) {
       try {
-        let request = this.client.api(endpoint);
+        const request = this.client.api(endpoint);
 
         if (method === 'POST') {
           return await request.post(body);

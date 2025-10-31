@@ -5,7 +5,6 @@
 import {
   SearchEmailsByEntitiesInput,
   BatchEmailSearchResult,
-  EmailSearchResult,
   GraphBatchRequest,
 } from '../../types/index.js';
 import { GraphClient } from '../../utils/graphClient.js';
@@ -98,7 +97,7 @@ export class SearchByEntities {
     maxResults: number = 5
   ): string {
     // Build KQL query
-    let kqlParts: string[] = [];
+    const kqlParts: string[] = [];
 
     // Search for entity in from/subject/body
     kqlParts.push(`(from:${this.escapeKql(entity)} OR subject:${this.escapeKql(entity)})`);
