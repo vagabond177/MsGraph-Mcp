@@ -173,7 +173,11 @@ export class GraphClient {
    * @param includeBody Whether to include full message body
    * @param mailbox Optional mailbox (UPN or user ID) for shared/delegated access
    */
-  async getMessage(messageId: string, includeBody: boolean = false, mailbox?: string): Promise<any> {
+  async getMessage(
+    messageId: string,
+    includeBody: boolean = false,
+    mailbox?: string
+  ): Promise<any> {
     let select =
       'id,subject,from,receivedDateTime,bodyPreview,hasAttachments,importance,toRecipients,ccRecipients';
 

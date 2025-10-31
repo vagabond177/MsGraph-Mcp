@@ -100,7 +100,7 @@ export class SearchByEntities {
 
     // Add keywords if provided
     if (keywords.length > 0) {
-      const keywordQuery = keywords.map((kw) => this.escapeKql(kw)).join(' OR ');
+      const keywordQuery = keywords.map(kw => this.escapeKql(kw)).join(' OR ');
       kqlParts.push(`(${keywordQuery})`);
     }
 

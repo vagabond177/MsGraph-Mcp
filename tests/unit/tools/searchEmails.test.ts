@@ -57,7 +57,11 @@ describe('SearchEmails', () => {
         maxResults: 10,
       });
 
-      expect(mockGraphClient.searchMessages).toHaveBeenCalledWith('from:john@example.com', 10, undefined);
+      expect(mockGraphClient.searchMessages).toHaveBeenCalledWith(
+        'from:john@example.com',
+        10,
+        undefined
+      );
       expect(result).toHaveLength(10);
     });
 
@@ -235,7 +239,11 @@ describe('SearchEmails', () => {
         mailbox: 'delegate@example.com',
       });
 
-      expect(mockGraphClient.searchMessages).toHaveBeenCalledWith('urgent', 50, 'delegate@example.com');
+      expect(mockGraphClient.searchMessages).toHaveBeenCalledWith(
+        'urgent',
+        50,
+        'delegate@example.com'
+      );
     });
   });
 });

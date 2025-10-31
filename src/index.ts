@@ -138,7 +138,7 @@ class MsGraphMcpServer {
                   type: 'string',
                   description:
                     'Optional: Email address (UPN) or user ID of shared/delegated mailbox to search. ' +
-                    'If not specified, searches the authenticated user\'s own mailbox.',
+                    "If not specified, searches the authenticated user's own mailbox.",
                 },
               },
               required: ['entities'],
@@ -166,7 +166,7 @@ class MsGraphMcpServer {
                   type: 'string',
                   description:
                     'Optional: Email address (UPN) or user ID of shared/delegated mailbox to search. ' +
-                    'If not specified, searches the authenticated user\'s own mailbox.',
+                    "If not specified, searches the authenticated user's own mailbox.",
                 },
               },
               required: ['query'],
@@ -193,7 +193,7 @@ class MsGraphMcpServer {
                   type: 'string',
                   description:
                     'Optional: Email address (UPN) or user ID of shared/delegated mailbox. ' +
-                    'If not specified, retrieves from the authenticated user\'s own mailbox.',
+                    "If not specified, retrieves from the authenticated user's own mailbox.",
                 },
               },
               required: ['messageId'],
@@ -211,7 +211,7 @@ class MsGraphMcpServer {
                   type: 'string',
                   description:
                     'Optional: Email address (UPN) or user ID of shared/delegated mailbox. ' +
-                    'If not specified, lists folders from the authenticated user\'s own mailbox.',
+                    "If not specified, lists folders from the authenticated user's own mailbox.",
                 },
               },
             },

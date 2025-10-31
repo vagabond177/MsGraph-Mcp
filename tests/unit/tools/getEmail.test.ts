@@ -257,7 +257,11 @@ describe('GetEmail', () => {
         mailbox: 'shared@example.com',
       });
 
-      expect(mockGraphClient.getMessage).toHaveBeenCalledWith('msg-123', false, 'shared@example.com');
+      expect(mockGraphClient.getMessage).toHaveBeenCalledWith(
+        'msg-123',
+        false,
+        'shared@example.com'
+      );
     });
 
     it('should support mailbox with includeBody=true', async () => {
@@ -270,7 +274,11 @@ describe('GetEmail', () => {
         mailbox: 'delegate@example.com',
       });
 
-      expect(mockGraphClient.getMessage).toHaveBeenCalledWith('msg-123', true, 'delegate@example.com');
+      expect(mockGraphClient.getMessage).toHaveBeenCalledWith(
+        'msg-123',
+        true,
+        'delegate@example.com'
+      );
     });
 
     it('should not pass mailbox when not specified', async () => {
