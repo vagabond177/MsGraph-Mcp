@@ -204,8 +204,8 @@ export class GraphClient {
   async copilotRetrieval(request: CopilotRetrievalRequest): Promise<CopilotRetrievalResponse> {
     logger.info(`Copilot retrieval: "${request.queryString}" on ${request.dataSource}`);
 
-    // Use v1.0 endpoint (also available in beta)
-    const endpoint = '/v1.0/copilot/retrieval';
+    // Microsoft Graph client automatically adds /v1.0 prefix
+    const endpoint = '/copilot/retrieval';
 
     try {
       const response = await this.executeRequest<CopilotRetrievalResponse>(
