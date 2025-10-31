@@ -103,6 +103,13 @@ export interface GetAttachmentsInput {
   mailbox?: string; // Optional: UPN or user ID for shared/delegated mailbox access
 }
 
+export interface DownloadAttachmentInput {
+  messageId: string;
+  attachmentId: string;
+  outputPath: string; // Where to save the file
+  mailbox?: string; // Optional: UPN or user ID for shared/delegated mailbox access
+}
+
 export interface ListMailFoldersInput {
   mailbox?: string; // Optional: UPN or user ID for shared/delegated mailbox access
 }

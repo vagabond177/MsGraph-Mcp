@@ -17,7 +17,14 @@ import { logger } from './utils/logger.js';
 import { GraphAuthenticator } from './auth/graphAuth.js';
 import { GraphClient } from './utils/graphClient.js';
 import { ResultCache } from './utils/resultCache.js';
-import { SearchByEntities, SearchEmails, GetEmail, GetAttachments, ListMailFolders } from './tools/mail/index.js';
+import {
+  SearchByEntities,
+  SearchEmails,
+  GetEmail,
+  GetAttachments,
+  DownloadAttachment,
+  ListMailFolders,
+} from './tools/mail/index.js';
 import { SearchContent } from './tools/copilot/index.js';
 
 // Main server class
@@ -31,6 +38,7 @@ class MsGraphMcpServer {
     searchEmails: SearchEmails;
     getEmail: GetEmail;
     getAttachments: GetAttachments;
+    downloadAttachment: DownloadAttachment;
     listMailFolders: ListMailFolders;
     searchContent: SearchContent;
   };
@@ -89,6 +97,7 @@ class MsGraphMcpServer {
       searchEmails: new SearchEmails(this.graphClient),
       getEmail: new GetEmail(this.graphClient),
       getAttachments: new GetAttachments(this.graphClient, this.resultCache),
+      downloadAttachment: new DownloadAttachment(this.graphClient),
       listMailFolders: new ListMailFolders(this.graphClient),
       searchContent: new SearchContent(this.graphClient, this.resultCache),
     };
@@ -234,6 +243,37 @@ class MsGraphMcpServer {
             },
           },
           {
+            name: 'mcp__msgraph__download_attachment',
+            description:
+              'Download email attachment directly to a file. This is the most token-efficient way ' +
+              'to download attachments - the file is written directly to disk and only the file path ' +
+              'is returned (~10 tokens). No content flows through Claude\'s context.',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                messageId: {
+                  type: 'string',
+                  description: 'The message ID containing the attachment',
+                },
+                attachmentId: {
+                  type: 'string',
+                  description: 'The attachment ID to download (from get_attachments)',
+                },
+                outputPath: {
+                  type: 'string',
+                  description: 'Where to save the file (absolute or relative path)',
+                },
+                mailbox: {
+                  type: 'string',
+                  description:
+                    'Optional: Email address (UPN) or user ID of shared/delegated mailbox. ' +
+                    "If not specified, downloads from the authenticated user's own mailbox.",
+                },
+              },
+              required: ['messageId', 'attachmentId', 'outputPath'],
+            },
+          },
+          {
             name: 'mcp__msgraph__list_mail_folders',
             description:
               'List all mail folders in the mailbox. Returns folder structure with item counts. ' +
@@ -339,6 +379,18 @@ class MsGraphMcpServer {
 
           case 'mcp__msgraph__get_attachments': {
             const result = await this.tools.getAttachments.execute(args as any);
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: JSON.stringify(result, null, 2),
+                },
+              ],
+            };
+          }
+
+          case 'mcp__msgraph__download_attachment': {
+            const result = await this.tools.downloadAttachment.execute(args as any);
             return {
               content: [
                 {
