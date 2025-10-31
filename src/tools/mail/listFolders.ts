@@ -16,11 +16,12 @@ export class ListMailFolders {
   /**
    * List all mail folders
    */
-  async execute(): Promise<MailFolder[]> {
-    logger.info('Listing mail folders');
+  async execute(mailbox?: string): Promise<MailFolder[]> {
+    const mailboxInfo = mailbox ? ` for mailbox ${mailbox}` : '';
+    logger.info(`Listing mail folders${mailboxInfo}`);
 
     try {
-      const result = await this.graphClient.listMailFolders();
+      const result = await this.graphClient.listMailFolders(mailbox);
       const folders = result?.value || [];
 
       logger.info(`Found ${folders.length} folders`);

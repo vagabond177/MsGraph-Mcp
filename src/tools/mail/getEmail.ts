@@ -18,12 +18,13 @@ export class GetEmail {
    * Get email details by message ID
    */
   async execute(input: GetEmailInput): Promise<any> {
-    const { messageId, includeBody = false } = input;
+    const { messageId, includeBody = false, mailbox } = input;
 
-    logger.info(`Fetching email: ${messageId}`);
+    const mailboxInfo = mailbox ? ` from mailbox ${mailbox}` : '';
+    logger.info(`Fetching email: ${messageId}${mailboxInfo}`);
 
     try {
-      const message = await this.graphClient.getMessage(messageId, includeBody);
+      const message = await this.graphClient.getMessage(messageId, includeBody, mailbox);
 
       if (includeBody) {
         // Return full email details

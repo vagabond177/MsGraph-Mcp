@@ -42,7 +42,7 @@ describe('SearchEmails', () => {
         query: 'subject:test',
       });
 
-      expect(mockGraphClient.searchMessages).toHaveBeenCalledWith('subject:test', 25);
+      expect(mockGraphClient.searchMessages).toHaveBeenCalledWith('subject:test', 25, undefined);
       expect(result).toHaveLength(5);
       expect(result[0]).toHaveProperty('messageId');
       expect(result[0]).toHaveProperty('subject');
@@ -57,7 +57,11 @@ describe('SearchEmails', () => {
         maxResults: 10,
       });
 
-      expect(mockGraphClient.searchMessages).toHaveBeenCalledWith('from:john@example.com', 10);
+      expect(mockGraphClient.searchMessages).toHaveBeenCalledWith(
+        'from:john@example.com',
+        10,
+        undefined
+      );
       expect(result).toHaveLength(10);
     });
 
@@ -149,7 +153,7 @@ describe('SearchEmails', () => {
         query: complexQuery,
       });
 
-      expect(mockGraphClient.searchMessages).toHaveBeenCalledWith(complexQuery, 25);
+      expect(mockGraphClient.searchMessages).toHaveBeenCalledWith(complexQuery, 25, undefined);
     });
 
     it('should estimate and log token usage', async () => {
@@ -177,7 +181,7 @@ describe('SearchEmails', () => {
         query: '',
       });
 
-      expect(mockGraphClient.searchMessages).toHaveBeenCalledWith('', 25);
+      expect(mockGraphClient.searchMessages).toHaveBeenCalledWith('', 25, undefined);
       expect(result).toEqual([]);
     });
 
@@ -189,7 +193,7 @@ describe('SearchEmails', () => {
         maxResults: -1,
       });
 
-      expect(mockGraphClient.searchMessages).toHaveBeenCalledWith('test', -1);
+      expect(mockGraphClient.searchMessages).toHaveBeenCalledWith('test', -1, undefined);
     });
 
     it('should handle very large maxResults', async () => {
@@ -200,7 +204,46 @@ describe('SearchEmails', () => {
         maxResults: 10000,
       });
 
-      expect(mockGraphClient.searchMessages).toHaveBeenCalledWith('test', 10000);
+      expect(mockGraphClient.searchMessages).toHaveBeenCalledWith('test', 10000, undefined);
+    });
+  });
+
+  describe('multi-mailbox support', () => {
+    it('should pass mailbox parameter to graphClient when specified', async () => {
+      mockGraphClient.searchMessages.mockResolvedValue({ value: [] });
+
+      await searchEmails.execute({
+        query: 'test',
+        mailbox: 'shared@example.com',
+      });
+
+      expect(mockGraphClient.searchMessages).toHaveBeenCalledWith('test', 25, 'shared@example.com');
+    });
+
+    it('should not pass mailbox parameter when not specified', async () => {
+      mockGraphClient.searchMessages.mockResolvedValue({ value: [] });
+
+      await searchEmails.execute({
+        query: 'test',
+      });
+
+      expect(mockGraphClient.searchMessages).toHaveBeenCalledWith('test', 25, undefined);
+    });
+
+    it('should support mailbox with custom maxResults', async () => {
+      mockGraphClient.searchMessages.mockResolvedValue({ value: [] });
+
+      await searchEmails.execute({
+        query: 'urgent',
+        maxResults: 50,
+        mailbox: 'delegate@example.com',
+      });
+
+      expect(mockGraphClient.searchMessages).toHaveBeenCalledWith(
+        'urgent',
+        50,
+        'delegate@example.com'
+      );
     });
   });
 });

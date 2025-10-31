@@ -41,7 +41,7 @@ describe('GetEmail', () => {
         messageId: 'msg-123',
       });
 
-      expect(mockGraphClient.getMessage).toHaveBeenCalledWith('msg-123', false);
+      expect(mockGraphClient.getMessage).toHaveBeenCalledWith('msg-123', false, undefined);
       expect(result).toMatchObject({
         messageId: mockMessage.id,
         subject: mockMessage.subject,
@@ -62,7 +62,7 @@ describe('GetEmail', () => {
         includeBody: true,
       });
 
-      expect(mockGraphClient.getMessage).toHaveBeenCalledWith('msg-123', true);
+      expect(mockGraphClient.getMessage).toHaveBeenCalledWith('msg-123', true, undefined);
       expect(result).toMatchObject({
         messageId: mockMessage.id,
         subject: mockMessage.subject,
@@ -182,7 +182,7 @@ describe('GetEmail', () => {
         messageId: 'msg-123',
       });
 
-      expect(mockGraphClient.getMessage).toHaveBeenCalledWith('msg-123', false);
+      expect(mockGraphClient.getMessage).toHaveBeenCalledWith('msg-123', false, undefined);
     });
 
     it('should pass includeBody=true to graph client', async () => {
@@ -194,7 +194,7 @@ describe('GetEmail', () => {
         includeBody: true,
       });
 
-      expect(mockGraphClient.getMessage).toHaveBeenCalledWith('msg-123', true);
+      expect(mockGraphClient.getMessage).toHaveBeenCalledWith('msg-123', true, undefined);
     });
 
     it('should pass includeBody=false explicitly', async () => {
@@ -206,7 +206,7 @@ describe('GetEmail', () => {
         includeBody: false,
       });
 
-      expect(mockGraphClient.getMessage).toHaveBeenCalledWith('msg-123', false);
+      expect(mockGraphClient.getMessage).toHaveBeenCalledWith('msg-123', false, undefined);
     });
   });
 
@@ -244,6 +244,52 @@ describe('GetEmail', () => {
 
       // Full email should include body
       expect(fullEmail.body.length).toBeGreaterThan(4000);
+    });
+  });
+
+  describe('multi-mailbox support', () => {
+    it('should pass mailbox parameter to graphClient when specified', async () => {
+      const mockMessage = createMockMessage();
+      mockGraphClient.getMessage.mockResolvedValue(mockMessage);
+
+      await getEmail.execute({
+        messageId: 'msg-123',
+        mailbox: 'shared@example.com',
+      });
+
+      expect(mockGraphClient.getMessage).toHaveBeenCalledWith(
+        'msg-123',
+        false,
+        'shared@example.com'
+      );
+    });
+
+    it('should support mailbox with includeBody=true', async () => {
+      const mockMessage = createMockMessage();
+      mockGraphClient.getMessage.mockResolvedValue(mockMessage);
+
+      await getEmail.execute({
+        messageId: 'msg-123',
+        includeBody: true,
+        mailbox: 'delegate@example.com',
+      });
+
+      expect(mockGraphClient.getMessage).toHaveBeenCalledWith(
+        'msg-123',
+        true,
+        'delegate@example.com'
+      );
+    });
+
+    it('should not pass mailbox when not specified', async () => {
+      const mockMessage = createMockMessage();
+      mockGraphClient.getMessage.mockResolvedValue(mockMessage);
+
+      await getEmail.execute({
+        messageId: 'msg-123',
+      });
+
+      expect(mockGraphClient.getMessage).toHaveBeenCalledWith('msg-123', false, undefined);
     });
   });
 });

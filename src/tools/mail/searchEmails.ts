@@ -18,12 +18,13 @@ export class SearchEmails {
    * Search emails with custom KQL query
    */
   async execute(input: SearchEmailsInput): Promise<EmailSummary[]> {
-    const { query, maxResults = 25 } = input;
+    const { query, maxResults = 25, mailbox } = input;
 
-    logger.info(`Searching emails with query: ${query}`);
+    const mailboxInfo = mailbox ? ` in mailbox ${mailbox}` : '';
+    logger.info(`Searching emails with query: ${query}${mailboxInfo}`);
 
     try {
-      const result = await this.graphClient.searchMessages(query, maxResults);
+      const result = await this.graphClient.searchMessages(query, maxResults, mailbox);
       const messages = result?.value || [];
 
       logger.info(`Found ${messages.length} emails`);

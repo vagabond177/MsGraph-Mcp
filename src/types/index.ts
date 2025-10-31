@@ -68,17 +68,24 @@ export interface SearchEmailsByEntitiesInput {
   dateFrom?: string;
   dateTo?: string;
   maxResultsPerEntity?: number;
+  mailbox?: string; // Optional: UPN or user ID for shared/delegated mailbox access
 }
 
 export interface SearchEmailsInput {
   query: string;
   maxResults?: number;
   folderIds?: string[];
+  mailbox?: string; // Optional: UPN or user ID for shared/delegated mailbox access
 }
 
 export interface GetEmailInput {
   messageId: string;
   includeBody?: boolean;
+  mailbox?: string; // Optional: UPN or user ID for shared/delegated mailbox access
+}
+
+export interface ListMailFoldersInput {
+  mailbox?: string; // Optional: UPN or user ID for shared/delegated mailbox access
 }
 
 // ============================================================================

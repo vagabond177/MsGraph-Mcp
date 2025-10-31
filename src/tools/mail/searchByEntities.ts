@@ -22,15 +22,16 @@ export class SearchByEntities {
    * Search emails for multiple entities in batch
    */
   async execute(input: SearchEmailsByEntitiesInput): Promise<BatchEmailSearchResult> {
-    const { entities, keywords = [], dateFrom, dateTo, maxResultsPerEntity = 5 } = input;
+    const { entities, keywords = [], dateFrom, dateTo, maxResultsPerEntity = 5, mailbox } = input;
 
-    logger.info(`Searching emails for ${entities.length} entities`);
+    const mailboxInfo = mailbox ? ` in mailbox ${mailbox}` : '';
+    logger.info(`Searching emails for ${entities.length} entities${mailboxInfo}`);
 
     // Build batch requests
     const batchRequests: GraphBatchRequest[] = entities.map((entity, index) => ({
       id: index.toString(),
       method: 'GET',
-      url: this.buildSearchUrl(entity, keywords, dateFrom, dateTo, maxResultsPerEntity),
+      url: this.buildSearchUrl(entity, keywords, dateFrom, dateTo, maxResultsPerEntity, mailbox),
     }));
 
     // Execute batch
@@ -88,7 +89,8 @@ export class SearchByEntities {
     keywords: string[],
     dateFrom?: string,
     dateTo?: string,
-    maxResults: number = 5
+    maxResults: number = 5,
+    mailbox?: string
   ): string {
     // Build KQL query
     const kqlParts: string[] = [];
@@ -112,9 +114,10 @@ export class SearchByEntities {
 
     const kqlQuery = kqlParts.join(' AND ');
 
-    // Build URL
+    // Build URL with optional mailbox
+    const basePath = mailbox ? `/users/${mailbox}` : '/me';
     const select = 'id,subject,from,receivedDateTime,bodyPreview,hasAttachments,importance';
-    return `/me/messages?$search="${kqlQuery}"&$top=${maxResults}&$select=${select}`;
+    return `${basePath}/messages?$search="${kqlQuery}"&$top=${maxResults}&$select=${select}`;
   }
 
   /**
