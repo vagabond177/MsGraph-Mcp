@@ -17,7 +17,7 @@ import { logger } from './utils/logger.js';
 import { GraphAuthenticator } from './auth/graphAuth.js';
 import { GraphClient } from './utils/graphClient.js';
 import { ResultCache } from './utils/resultCache.js';
-import { SearchByEntities, SearchEmails, GetEmail, ListMailFolders } from './tools/mail/index.js';
+import { SearchByEntities, SearchEmails, GetEmail, GetAttachments, ListMailFolders } from './tools/mail/index.js';
 import { SearchContent } from './tools/copilot/index.js';
 
 // Main server class
@@ -30,6 +30,7 @@ class MsGraphMcpServer {
     searchByEntities: SearchByEntities;
     searchEmails: SearchEmails;
     getEmail: GetEmail;
+    getAttachments: GetAttachments;
     listMailFolders: ListMailFolders;
     searchContent: SearchContent;
   };
@@ -87,6 +88,7 @@ class MsGraphMcpServer {
       searchByEntities: new SearchByEntities(this.graphClient),
       searchEmails: new SearchEmails(this.graphClient),
       getEmail: new GetEmail(this.graphClient),
+      getAttachments: new GetAttachments(this.graphClient),
       listMailFolders: new ListMailFolders(this.graphClient),
       searchContent: new SearchContent(this.graphClient, this.resultCache),
     };
@@ -200,6 +202,36 @@ class MsGraphMcpServer {
             },
           },
           {
+            name: 'mcp__msgraph__get_attachments',
+            description:
+              'Get attachments for a specific email by message ID. Returns token-efficient ' +
+              'metadata by default (name, size, type). Use includeContent=true to download ' +
+              'base64-encoded file content (warning: may consume many tokens for large files).',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                messageId: {
+                  type: 'string',
+                  description: 'The message ID to get attachments for',
+                },
+                includeContent: {
+                  type: 'boolean',
+                  description:
+                    'Include base64-encoded file content (default: false for token efficiency). ' +
+                    'Only set to true when you need to download the actual file.',
+                  default: false,
+                },
+                mailbox: {
+                  type: 'string',
+                  description:
+                    'Optional: Email address (UPN) or user ID of shared/delegated mailbox. ' +
+                    "If not specified, retrieves from the authenticated user's own mailbox.",
+                },
+              },
+              required: ['messageId'],
+            },
+          },
+          {
             name: 'mcp__msgraph__list_mail_folders',
             description:
               'List all mail folders in the mailbox. Returns folder structure with item counts. ' +
@@ -293,6 +325,18 @@ class MsGraphMcpServer {
 
           case 'mcp__msgraph__get_email': {
             const result = await this.tools.getEmail.execute(args as any);
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: JSON.stringify(result, null, 2),
+                },
+              ],
+            };
+          }
+
+          case 'mcp__msgraph__get_attachments': {
+            const result = await this.tools.getAttachments.execute(args as any);
             return {
               content: [
                 {

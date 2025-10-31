@@ -53,6 +53,36 @@ export function createMockMessages(count: number): any[] {
 }
 
 /**
+ * Create a mock Graph API attachment
+ */
+export function createMockAttachment(overrides?: Partial<any>): any {
+  return {
+    '@odata.type': '#microsoft.graph.fileAttachment',
+    id: 'attachment-123',
+    name: 'document.pdf',
+    contentType: 'application/pdf',
+    size: 1024768, // ~1MB
+    isInline: false,
+    lastModifiedDateTime: '2025-10-31T10:00:00Z',
+    contentBytes: 'base64EncodedContentHere==',
+    ...overrides,
+  };
+}
+
+/**
+ * Create multiple mock attachments
+ */
+export function createMockAttachments(count: number): any[] {
+  return Array.from({ length: count }, (_, i) =>
+    createMockAttachment({
+      id: `attachment-${i + 1}`,
+      name: `document-${i + 1}.pdf`,
+      size: 1024 * (i + 1),
+    })
+  );
+}
+
+/**
  * Create a mock auth config
  */
 export function createMockAuthConfig(overrides?: Partial<AuthConfig>): AuthConfig {

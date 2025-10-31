@@ -58,6 +58,19 @@ export interface MailFolder {
   totalItemCount: number;
 }
 
+export interface AttachmentSummary {
+  id: string;
+  name: string;
+  contentType: string;
+  size: number;
+  isInline: boolean;
+  lastModifiedDateTime?: string;
+}
+
+export interface AttachmentDetail extends AttachmentSummary {
+  contentBytes?: string; // Base64 encoded content (only if includeContent=true)
+}
+
 // ============================================================================
 // Tool Input Types
 // ============================================================================
@@ -81,6 +94,12 @@ export interface SearchEmailsInput {
 export interface GetEmailInput {
   messageId: string;
   includeBody?: boolean;
+  mailbox?: string; // Optional: UPN or user ID for shared/delegated mailbox access
+}
+
+export interface GetAttachmentsInput {
+  messageId: string;
+  includeContent?: boolean; // Include base64 content (default: false for token efficiency)
   mailbox?: string; // Optional: UPN or user ID for shared/delegated mailbox access
 }
 
