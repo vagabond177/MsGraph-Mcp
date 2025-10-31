@@ -136,11 +136,13 @@ npm test && npm run lint && npm run type-check
 - ❌ No PR merge without passing tests
 
 ### Git Workflow (Branch protection on `main`)
+- **⚠️ MANDATORY: ALL work on feature branches** - NEVER commit to `main`
 - ✅ Create `feature/*`, `fix/*`, `docs/*`, or `test/*` branch
 - ✅ Write tests first (TDD)
 - ✅ Commit with format: `<type>: <subject>` + Claude footer
 - ✅ PR requires 1 approval + all CI checks pass
-- ✅ Squash and merge to `main`
+- **⚠️ MANDATORY: Squash merge** when completing PR
+- ✅ Delete branch after merge
 - **Details:** `docs/development/git-workflow.md`
 
 ### Adding New MCP Tools
@@ -149,8 +151,10 @@ npm test && npm run lint && npm run type-check
 3. Use `resultProcessor.ts` for summarization
 4. Support array inputs (batching)
 5. Register in `src/index.ts`
-6. Naming: `mcp__msgraph__<action>_<resource>`
-7. **Details:** `docs/development/adding-tools.md`
+6. **⚠️ Add Azure AD permissions via `az` CLI** (CLIENT_ID from `.env`)
+7. **⚠️ Verify tool with MCP Inspector or Claude Code** - Confirm registration
+8. Naming: `mcp__msgraph__<action>_<resource>`
+9. **Details:** `docs/development/adding-tools.md`
 
 ---
 
