@@ -57,19 +57,35 @@ Search across M365 content (SharePoint, OneDrive) using Microsoft Copilot Retrie
 
 ### Output Schema
 
-Returns array of `CopilotSearchResult`:
+Returns `CopilotSearchResponse` with brief summaries:
 
 ```typescript
 {
-  source: string;              // Data source searched
-  url: string;                 // Web URL to the content
-  relevance: number;           // Relevance score (0-1)
-  excerpt: string;             // Relevant text extracts from the content
-  resourceType: string;        // 'listItem' or 'externalItem'
-  metadata?: object;           // File metadata (if requested)
-  sensitivityLabel?: string;   // Sensitivity label name (if present)
+  searchId: string;            // Unique ID for this search (used to read full results)
+  query: string;               // Original search query
+  dataSource: string;          // Data source searched
+  totalResults: number;        // Number of results found
+  instruction: string;         // Instructions for reading full details
+  results: [                   // Array of brief summaries
+    {
+      resultId: string;        // Result identifier (e.g., "result-0")
+      title: string;           // Document title
+      url: string;             // Web URL to the content
+      relevance: number;       // Relevance score (0-1)
+      briefExcerpt: string;    // Short 150-char preview
+      resourceType: string;    // 'listItem' or 'externalItem'
+      sensitivityLabel?: string; // Sensitivity label name (if present)
+      resourceUri: string;     // MCP Resource URI for full extracts
+      metadata?: {
+        fileExtension?: string;
+        lastModifiedDateTime?: string;
+      }
+    }
+  ]
 }
 ```
+
+**Token Efficiency:** Brief summaries use ~100 tokens per result (vs ~13,000 tokens for full extracts).
 
 ---
 
@@ -220,34 +236,121 @@ When `true`, the `metadata` field includes:
 ### Example Response
 
 ```json
-[
-  {
-    "source": "sharePoint",
-    "url": "https://contoso.sharepoint.com/sites/Sales/Documents/VendorAgreement2024.pdf",
-    "relevance": 0.95,
-    "excerpt": "Vendor Sponsorship Agreement\n\nThis agreement between Contoso and Acme Corp establishes the terms for bronze-level sponsorship...\n\n...sponsorship benefits include logo placement on website, social media mentions, and booth space at annual conference...",
-    "resourceType": "listItem",
-    "sensitivityLabel": "Confidential"
-  },
-  {
-    "source": "sharePoint",
-    "url": "https://contoso.sharepoint.com/sites/Marketing/Shared Documents/2024 Sponsorships.xlsx",
-    "relevance": 0.87,
-    "excerpt": "2024 Vendor Sponsorship Tracking\n\nAcme Corp - Bronze - $10,000 - Confirmed\nGlobal Tech - Silver - $25,000 - Pending\n...",
-    "resourceType": "listItem"
-  }
-]
+{
+  "searchId": "1730505600000-abc123",
+  "query": "vendor sponsorship agreements",
+  "dataSource": "sharePoint",
+  "totalResults": 2,
+  "instruction": "These are brief summaries. To see full text extracts for any result, read the MCP Resource at resourceUri.",
+  "results": [
+    {
+      "resultId": "result-0",
+      "title": "VendorAgreement2024",
+      "url": "https://contoso.sharepoint.com/sites/Sales/Documents/VendorAgreement2024.pdf",
+      "relevance": 0.95,
+      "briefExcerpt": "Vendor Sponsorship Agreement between Contoso and Acme Corp establishes the terms for bronze-level sponsorship including logo placement...",
+      "resourceType": "listItem",
+      "sensitivityLabel": "Confidential",
+      "resourceUri": "copilot://search-1730505600000-abc123/result-0"
+    },
+    {
+      "resultId": "result-1",
+      "title": "2024 Sponsorships",
+      "url": "https://contoso.sharepoint.com/sites/Marketing/Shared Documents/2024 Sponsorships.xlsx",
+      "relevance": 0.87,
+      "briefExcerpt": "Tracking spreadsheet: Acme Corp - Bronze - $10,000 - Confirmed, Global Tech - Silver - $25,000 - Pending...",
+      "resourceType": "listItem",
+      "resourceUri": "copilot://search-1730505600000-abc123/result-1"
+    }
+  ]
+}
 ```
 
 ### Fields Explained
 
-- **source**: Which data source was searched (`sharePoint`, `oneDriveBusiness`, etc.)
-- **url**: Direct web URL to open the content
+- **searchId**: Unique identifier for this search (used to access cached full results)
+- **totalResults**: Total number of results found
+- **instruction**: Reminder that full extracts are available via MCP Resources
+- **resultId**: Identifier for each result within the search
+- **title**: Document title (from metadata or extracted from URL)
+- **url**: Direct web URL to open the content in browser
 - **relevance**: AI-calculated relevance score (0.0 to 1.0, higher = more relevant)
-- **excerpt**: Text extracts from the document showing relevant sections
+- **briefExcerpt**: Short preview (~150 chars) from the most relevant extract
+- **resourceUri**: MCP Resource URI to read full text extracts for this result
 - **resourceType**: Type of resource (`listItem` for SharePoint/OneDrive, `externalItem` for connectors)
 - **metadata**: (Optional) File properties if `includeMetadata: true`
 - **sensitivityLabel**: (Optional) Sensitivity label name if document is labeled
+
+---
+
+## Accessing Full Text Extracts
+
+### Why Brief Summaries?
+
+To avoid exceeding token limits (25,000 tokens), the search tool returns **brief summaries** by default:
+- ~100 tokens per result
+- 10 results = ~1,000 tokens ✅
+- 25 results = ~2,500 tokens ✅
+
+Full extracts can be 100x larger (~13,000 tokens per result), causing the tool to fail with token limit errors.
+
+### Reading Full Details
+
+Full text extracts are **cached server-side** and accessible via **MCP Resources**.
+
+**Claude Code Workflow:**
+
+1. **Search returns brief summaries:**
+   ```
+   User: "Find vendor sponsorship docs"
+   Claude: [Calls search tool, sees 10 brief summaries]
+   Claude: "I found 10 documents:
+            1. VendorAgreement2024 (95% relevant)
+            2. 2024 Sponsorships spreadsheet (87% relevant)
+            ..."
+   ```
+
+2. **User asks for details:**
+   ```
+   User: "Tell me more about #1 and #2"
+   Claude: [Reads resources:
+            - copilot://search-xxx/result-0
+            - copilot://search-xxx/result-1]
+   Claude: [Sees full extracts, summarizes in context]
+   ```
+
+### Resource Format
+
+When reading a resource, you get:
+
+```json
+{
+  "url": "https://...",
+  "resourceType": "listItem",
+  "sensitivityLabel": {...},
+  "metadata": {...},
+  "extracts": [
+    {
+      "text": "Full text extract 1 (can be 1000+ chars)...",
+      "relevanceScore": 0.95
+    },
+    {
+      "text": "Full text extract 2...",
+      "relevanceScore": 0.87
+    }
+  ],
+  "totalExtracts": 2
+}
+```
+
+### Cache Behavior
+
+- **TTL:** 15 minutes (configurable)
+- **Max entries:** 100 searches (configurable)
+- **Eviction:** LRU (Least Recently Used)
+- **Cleanup:** Automatic every 5 minutes
+
+If a resource has expired, reading it will return an error. In that case, re-run the search.
 
 ---
 

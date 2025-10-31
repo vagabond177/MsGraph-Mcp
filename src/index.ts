@@ -8,12 +8,15 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
+  ListResourcesRequestSchema,
+  ReadResourceRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 
 import { getConfig } from './utils/config.js';
 import { logger } from './utils/logger.js';
 import { GraphAuthenticator } from './auth/graphAuth.js';
 import { GraphClient } from './utils/graphClient.js';
+import { ResultCache } from './utils/resultCache.js';
 import {
   SearchByEntities,
   SearchEmails,
@@ -27,6 +30,7 @@ class MsGraphMcpServer {
   private server: Server;
   private authenticator: GraphAuthenticator;
   private graphClient: GraphClient;
+  private resultCache: ResultCache;
   private tools: {
     searchByEntities: SearchByEntities;
     searchEmails: SearchEmails;
@@ -44,9 +48,13 @@ class MsGraphMcpServer {
       {
         capabilities: {
           tools: {},
+          resources: {},
         },
       }
     );
+
+    // Initialize result cache
+    this.resultCache = new ResultCache();
 
     // Initialize (will be done async in start())
     this.authenticator = null as any;
@@ -54,6 +62,7 @@ class MsGraphMcpServer {
     this.tools = null as any;
 
     this.setupHandlers();
+    this.setupResourceHandlers();
     this.setupErrorHandlers();
   }
 
@@ -84,7 +93,7 @@ class MsGraphMcpServer {
       searchEmails: new SearchEmails(this.graphClient),
       getEmail: new GetEmail(this.graphClient),
       listMailFolders: new ListMailFolders(this.graphClient),
-      searchContent: new SearchContent(this.graphClient),
+      searchContent: new SearchContent(this.graphClient, this.resultCache),
     };
 
     logger.info('Server initialized successfully');
@@ -313,6 +322,85 @@ class MsGraphMcpServer {
           isError: true,
         };
       }
+    });
+  }
+
+  /**
+   * Setup MCP Resource handlers for cached search results
+   */
+  private setupResourceHandlers(): void {
+    // List available resources
+    this.server.setRequestHandler(ListResourcesRequestSchema, async () => {
+      const resources: any[] = [];
+
+      // List all cached search results as resources
+      for (const searchId of this.resultCache.listSearchIds()) {
+        const results = this.resultCache.getSearchResults(searchId);
+
+        if (results) {
+          for (let i = 0; i < results.length; i++) {
+            const hit = results[i];
+            resources.push({
+              uri: `copilot://search-${searchId}/result-${i}`,
+              name: `Search result ${i + 1} from ${searchId}`,
+              description: `Full text extracts for ${hit.webUrl}`,
+              mimeType: 'application/json',
+            });
+          }
+        }
+      }
+
+      logger.debug(`Listing ${resources.length} cached resources`);
+      return { resources };
+    });
+
+    // Read a specific resource
+    this.server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+      const uri = request.params.uri;
+
+      logger.debug(`Reading resource: ${uri}`);
+
+      // Parse URI: copilot://search-{searchId}/result-{index}
+      const match = uri.match(/^copilot:\/\/search-([^/]+)\/result-(\d+)$/);
+
+      if (!match) {
+        throw new Error(`Invalid resource URI: ${uri}`);
+      }
+
+      const searchId = match[1];
+      const resultIndex = parseInt(match[2], 10);
+
+      // Get the cached result
+      const hit = this.resultCache.getResult(searchId, resultIndex);
+
+      if (!hit) {
+        throw new Error(`Resource not found: ${uri} (may have expired from cache)`);
+      }
+
+      // Return full details with all extracts
+      const content = {
+        url: hit.webUrl,
+        resourceType: hit.resourceType,
+        sensitivityLabel: hit.sensitivityLabel,
+        metadata: hit.resourceMetadata,
+        extracts: hit.extracts.map((extract) => ({
+          text: extract.text,
+          relevanceScore: extract.relevanceScore,
+        })),
+        totalExtracts: hit.extracts.length,
+      };
+
+      logger.debug(`Returning ${hit.extracts.length} extracts for ${hit.webUrl}`);
+
+      return {
+        contents: [
+          {
+            uri,
+            mimeType: 'application/json',
+            text: JSON.stringify(content, null, 2),
+          },
+        ],
+      };
     });
   }
 

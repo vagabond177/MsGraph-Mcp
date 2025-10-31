@@ -228,3 +228,29 @@ export interface CopilotSearchResult {
   metadata?: Record<string, unknown>;
   sensitivityLabel?: string;
 }
+
+// Brief summary returned to Claude (token-efficient)
+export interface CopilotSearchResultBrief {
+  resultId: string;
+  title: string;
+  url: string;
+  relevance: number;
+  briefExcerpt: string; // Short 100-150 char preview
+  resourceType: string;
+  sensitivityLabel?: string;
+  resourceUri: string; // MCP Resource URI for full details
+  metadata?: {
+    fileExtension?: string;
+    lastModifiedDateTime?: string;
+  };
+}
+
+// Search response with cached results
+export interface CopilotSearchResponse {
+  searchId: string;
+  query: string;
+  dataSource: CopilotDataSource;
+  totalResults: number;
+  results: CopilotSearchResultBrief[];
+  instruction: string;
+}

@@ -1,27 +1,34 @@
 /**
  * Copilot-powered content search across M365 tenant
  * Searches SharePoint, OneDrive, and external items using natural language
+ *
+ * Returns brief summaries to Claude, caches full results as MCP Resources
  */
 
 import {
   CopilotSearchInput,
-  CopilotSearchResult,
+  CopilotSearchResponse,
+  CopilotSearchResultBrief,
   CopilotRetrievalRequest,
 } from '../../types/index.js';
 import { GraphClient } from '../../utils/graphClient.js';
+import { ResultCache } from '../../utils/resultCache.js';
 import { logger } from '../../utils/logger.js';
 
 export class SearchContent {
   private graphClient: GraphClient;
+  private resultCache: ResultCache;
 
-  constructor(graphClient: GraphClient) {
+  constructor(graphClient: GraphClient, resultCache: ResultCache) {
     this.graphClient = graphClient;
+    this.resultCache = resultCache;
   }
 
   /**
    * Search M365 content using Copilot Retrieval API
+   * Returns brief summaries, caches full results for later retrieval
    */
-  async execute(input: CopilotSearchInput): Promise<CopilotSearchResult[]> {
+  async execute(input: CopilotSearchInput): Promise<CopilotSearchResponse> {
     const {
       query,
       dataSource = 'sharePoint',
@@ -60,38 +67,59 @@ export class SearchContent {
 
       logger.info(`Found ${response.retrievalHits.length} results`);
 
-      // Transform to simplified results
-      const results: CopilotSearchResult[] = response.retrievalHits.map((hit) => {
-        // Combine all extracts into a single excerpt, prioritizing by relevance
-        const sortedExtracts = [...hit.extracts].sort(
-          (a, b) => b.relevanceScore - a.relevanceScore
-        );
-        const excerpt = sortedExtracts.map((e) => e.text).join('\n\n');
+      // Generate search ID and cache full results
+      const searchId = this.resultCache.generateSearchId();
+      this.resultCache.set(searchId, query, response.retrievalHits);
 
-        // Get the highest relevance score
+      logger.debug(`Cached search ${searchId} with ${response.retrievalHits.length} results`);
+
+      // Create brief summaries for each result
+      const briefResults: CopilotSearchResultBrief[] = response.retrievalHits.map((hit, index) => {
+        // Extract title from metadata or URL
+        const title = this.extractTitle(hit, includeMetadata);
+
+        // Get highest relevance score
         const relevance =
           hit.extracts.length > 0
             ? Math.max(...hit.extracts.map((e) => e.relevanceScore))
             : 0;
 
+        // Create brief excerpt from top extract
+        const briefExcerpt = this.createBriefExcerpt(hit.extracts);
+
         return {
-          source: dataSource,
+          resultId: `result-${index}`,
+          title,
           url: hit.webUrl,
-          relevance: relevance,
-          excerpt: excerpt,
+          relevance,
+          briefExcerpt,
           resourceType: hit.resourceType,
-          metadata: includeMetadata ? hit.resourceMetadata : undefined,
           sensitivityLabel: hit.sensitivityLabel?.name,
+          resourceUri: `copilot://search-${searchId}/result-${index}`,
+          metadata: includeMetadata
+            ? {
+                fileExtension: hit.resourceMetadata?.fileExtension as string,
+                lastModifiedDateTime: hit.resourceMetadata?.lastModifiedDateTime as string,
+              }
+            : undefined,
         };
       });
 
       // Sort by relevance (highest first)
-      results.sort((a, b) => b.relevance - a.relevance);
+      briefResults.sort((a, b) => b.relevance - a.relevance);
 
       // Log statistics
-      this.logResultStats(results, query);
+      this.logResultStats(briefResults, query);
 
-      return results;
+      return {
+        searchId,
+        query,
+        dataSource,
+        totalResults: briefResults.length,
+        results: briefResults,
+        instruction:
+          'These are brief summaries. To see full text extracts for any result, read the MCP Resource at resourceUri.',
+      };
     } catch (error) {
       logger.error('Copilot search failed:', error);
       throw error;
@@ -99,9 +127,62 @@ export class SearchContent {
   }
 
   /**
+   * Extract title from result metadata or URL
+   */
+  private extractTitle(hit: any, hasMetadata: boolean): string {
+    // Try title from metadata
+    if (hasMetadata && hit.resourceMetadata?.title) {
+      return hit.resourceMetadata.title as string;
+    }
+
+    // Fall back to extracting from URL
+    const url = hit.webUrl;
+    const parts = url.split('/');
+    const filename = parts[parts.length - 1];
+
+    // Decode URL encoding and remove file extension
+    const decoded = decodeURIComponent(filename);
+    const withoutExt = decoded.replace(/\.[^.]+$/, '');
+
+    return withoutExt || 'Untitled Document';
+  }
+
+  /**
+   * Create brief excerpt from extracts
+   * Takes top extract by relevance, truncates to ~150 chars
+   */
+  private createBriefExcerpt(extracts: any[]): string {
+    if (!extracts || extracts.length === 0) {
+      return '';
+    }
+
+    // Get top extract by relevance
+    const topExtract = extracts.reduce((prev, curr) =>
+      curr.relevanceScore > prev.relevanceScore ? curr : prev
+    );
+
+    const text = topExtract.text;
+
+    // Truncate to ~150 chars at word boundary
+    const maxChars = 150;
+    if (text.length <= maxChars) {
+      return text;
+    }
+
+    const truncated = text.substring(0, maxChars);
+    const lastSpace = truncated.lastIndexOf(' ');
+
+    if (lastSpace > 0) {
+      return truncated.substring(0, lastSpace) + '...';
+    }
+
+    return truncated + '...';
+  }
+
+  /**
    * Log search result statistics
    */
-  private logResultStats(results: CopilotSearchResult[], query: string): void {
+  private logResultStats(results: CopilotSearchResultBrief[], query: string): void {
     if (results.length === 0) {
       logger.info(`No results found for: "${query}"`);
       return;
@@ -112,6 +193,13 @@ export class SearchContent {
     const resourceTypes = [...new Set(results.map((r) => r.resourceType))];
     const withSensitivity = results.filter((r) => r.sensitivityLabel).length;
 
-    logger.info(`Copilot search stats: ${results.length} results, avg relevance ${avgRelevance.toFixed(2)}, types: ${resourceTypes.join(', ')}, ${withSensitivity} with sensitivity labels`);
+    // Estimate tokens (rough): 100 tokens per brief result
+    const estimatedTokens = results.length * 100;
+
+    logger.info(
+      `Copilot search: ${results.length} results, avg relevance ${avgRelevance.toFixed(2)}, ` +
+        `types: ${resourceTypes.join(', ')}, ${withSensitivity} with sensitivity labels, ` +
+        `~${estimatedTokens} tokens`
+    );
   }
 }
