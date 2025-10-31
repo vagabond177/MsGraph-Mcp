@@ -3,10 +3,26 @@
  */
 
 import { config as loadEnv } from 'dotenv';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 import { ServerConfig, AuthConfig } from '../types/index.js';
 
-// Load environment variables
-loadEnv();
+// Get the directory of this file
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Project root is two levels up from src/utils/ (or dist/utils/ when compiled)
+const projectRoot = join(__dirname, '..', '..');
+
+// Load environment variables from .env file in project root
+const envPath = join(projectRoot, '.env');
+const result = loadEnv({ path: envPath });
+
+// Debug logging (only shows if LOG_LEVEL=debug is already set in environment)
+if (process.env.LOG_LEVEL === 'debug') {
+  console.log(`[DEBUG] Loading .env from: ${envPath}`);
+  console.log(`[DEBUG] .env loaded: ${result.parsed ? 'yes' : 'no'}`);
+}
 
 /**
  * Validate required environment variables
@@ -16,8 +32,10 @@ function validateEnv(): void {
   const missing = required.filter((key) => !process.env[key]);
 
   if (missing.length > 0) {
+    const envPath = join(projectRoot, '.env');
     throw new Error(
       `Missing required environment variables: ${missing.join(', ')}\n` +
+        `Expected .env file at: ${envPath}\n` +
         'Please create a .env file with TENANT_ID and CLIENT_ID.'
     );
   }
@@ -51,6 +69,13 @@ export function getConfig(): ServerConfig {
     environment: (process.env.NODE_ENV as 'development' | 'production') || 'development',
     logLevel: (process.env.LOG_LEVEL as 'debug' | 'info' | 'warn' | 'error') || 'info',
   };
+}
+
+/**
+ * Get the project root directory
+ */
+export function getProjectRoot(): string {
+  return projectRoot;
 }
 
 /**
