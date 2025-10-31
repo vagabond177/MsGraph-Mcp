@@ -29,7 +29,7 @@ if (process.env.LOG_LEVEL === 'debug') {
  */
 function validateEnv(): void {
   const required = ['TENANT_ID', 'CLIENT_ID'];
-  const missing = required.filter(key => !process.env[key]);
+  const missing = required.filter((key) => !process.env[key]);
 
   if (missing.length > 0) {
     const envPath = join(projectRoot, '.env');
@@ -51,6 +51,7 @@ function createAuthConfig(): AuthConfig {
     redirectUri: process.env.REDIRECT_URI || 'http://localhost:3000/auth/callback',
     scopes: [
       'https://graph.microsoft.com/Mail.Read',
+      'https://graph.microsoft.com/Mail.Read.Shared',
       'https://graph.microsoft.com/User.Read',
       'offline_access', // Required for refresh tokens
     ],

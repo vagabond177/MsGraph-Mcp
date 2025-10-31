@@ -199,4 +199,36 @@ describe('ListMailFolders', () => {
       expect(folderNames).toContain('Drafts');
     });
   });
+
+  describe('multi-mailbox support', () => {
+    it('should pass mailbox parameter to graphClient when specified', async () => {
+      mockGraphClient.listMailFolders.mockResolvedValue({ value: [] });
+
+      await listFolders.execute('shared@example.com');
+
+      expect(mockGraphClient.listMailFolders).toHaveBeenCalledWith('shared@example.com');
+    });
+
+    it('should not pass mailbox when not specified', async () => {
+      mockGraphClient.listMailFolders.mockResolvedValue({ value: [] });
+
+      await listFolders.execute();
+
+      expect(mockGraphClient.listMailFolders).toHaveBeenCalledWith(undefined);
+    });
+
+    it('should list folders from shared mailbox', async () => {
+      const mockFolders = [
+        createMockMailFolder({ displayName: 'Shared Inbox' }),
+        createMockMailFolder({ displayName: 'Shared Sent' }),
+      ];
+
+      mockGraphClient.listMailFolders.mockResolvedValue({ value: mockFolders });
+
+      const result = await listFolders.execute('team@example.com');
+
+      expect(mockGraphClient.listMailFolders).toHaveBeenCalledWith('team@example.com');
+      expect(result).toHaveLength(2);
+    });
+  });
 });

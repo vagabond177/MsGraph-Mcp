@@ -157,16 +157,23 @@ export class GraphClient {
 
   /**
    * Search for messages using KQL query
+   * @param query KQL search query
+   * @param maxResults Maximum number of results to return
+   * @param mailbox Optional mailbox (UPN or user ID) for shared/delegated access
    */
-  async searchMessages(query: string, maxResults: number = 25): Promise<any> {
-    const endpoint = `/me/messages?$search="${query}"&$top=${maxResults}&$select=id,subject,from,receivedDateTime,bodyPreview,hasAttachments,importance`;
+  async searchMessages(query: string, maxResults: number = 25, mailbox?: string): Promise<any> {
+    const basePath = mailbox ? `/users/${mailbox}` : '/me';
+    const endpoint = `${basePath}/messages?$search="${query}"&$top=${maxResults}&$select=id,subject,from,receivedDateTime,bodyPreview,hasAttachments,importance`;
     return this.executeRequest(endpoint);
   }
 
   /**
    * Get a specific message by ID
+   * @param messageId The message ID to retrieve
+   * @param includeBody Whether to include full message body
+   * @param mailbox Optional mailbox (UPN or user ID) for shared/delegated access
    */
-  async getMessage(messageId: string, includeBody: boolean = false): Promise<any> {
+  async getMessage(messageId: string, includeBody: boolean = false, mailbox?: string): Promise<any> {
     let select =
       'id,subject,from,receivedDateTime,bodyPreview,hasAttachments,importance,toRecipients,ccRecipients';
 
@@ -174,16 +181,18 @@ export class GraphClient {
       select += ',body';
     }
 
-    const endpoint = `/me/messages/${messageId}?$select=${select}`;
+    const basePath = mailbox ? `/users/${mailbox}` : '/me';
+    const endpoint = `${basePath}/messages/${messageId}?$select=${select}`;
     return this.executeRequest(endpoint);
   }
 
   /**
    * List mail folders
+   * @param mailbox Optional mailbox (UPN or user ID) for shared/delegated access
    */
-  async listMailFolders(): Promise<any> {
-    const endpoint =
-      '/me/mailFolders?$select=id,displayName,parentFolderId,childFolderCount,unreadItemCount,totalItemCount';
+  async listMailFolders(mailbox?: string): Promise<any> {
+    const basePath = mailbox ? `/users/${mailbox}` : '/me';
+    const endpoint = `${basePath}/mailFolders?$select=id,displayName,parentFolderId,childFolderCount,unreadItemCount,totalItemCount`;
     return this.executeRequest(endpoint);
   }
 

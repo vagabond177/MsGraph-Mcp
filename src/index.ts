@@ -134,6 +134,12 @@ class MsGraphMcpServer {
                   description: 'Max results per entity (default: 5)',
                   default: 5,
                 },
+                mailbox: {
+                  type: 'string',
+                  description:
+                    'Optional: Email address (UPN) or user ID of shared/delegated mailbox to search. ' +
+                    'If not specified, searches the authenticated user\'s own mailbox.',
+                },
               },
               required: ['entities'],
             },
@@ -156,6 +162,12 @@ class MsGraphMcpServer {
                   description: 'Maximum results to return (default: 25)',
                   default: 25,
                 },
+                mailbox: {
+                  type: 'string',
+                  description:
+                    'Optional: Email address (UPN) or user ID of shared/delegated mailbox to search. ' +
+                    'If not specified, searches the authenticated user\'s own mailbox.',
+                },
               },
               required: ['query'],
             },
@@ -177,6 +189,12 @@ class MsGraphMcpServer {
                   description: 'Include full email body (increases tokens, default: false)',
                   default: false,
                 },
+                mailbox: {
+                  type: 'string',
+                  description:
+                    'Optional: Email address (UPN) or user ID of shared/delegated mailbox. ' +
+                    'If not specified, retrieves from the authenticated user\'s own mailbox.',
+                },
               },
               required: ['messageId'],
             },
@@ -188,7 +206,14 @@ class MsGraphMcpServer {
               'Useful for understanding mailbox organization or targeting specific folders.',
             inputSchema: {
               type: 'object',
-              properties: {},
+              properties: {
+                mailbox: {
+                  type: 'string',
+                  description:
+                    'Optional: Email address (UPN) or user ID of shared/delegated mailbox. ' +
+                    'If not specified, lists folders from the authenticated user\'s own mailbox.',
+                },
+              },
             },
           },
           {
@@ -279,7 +304,8 @@ class MsGraphMcpServer {
           }
 
           case 'mcp__msgraph__list_mail_folders': {
-            const result = await this.tools.listMailFolders.execute();
+            const input = args as any;
+            const result = await this.tools.listMailFolders.execute(input?.mailbox);
             return {
               content: [
                 {
