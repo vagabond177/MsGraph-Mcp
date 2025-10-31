@@ -24,6 +24,7 @@ import {
   GetAttachments,
   DownloadAttachment,
   ListMailFolders,
+  SendMessage,
 } from './tools/mail/index.js';
 import { SearchContent } from './tools/copilot/index.js';
 
@@ -40,6 +41,7 @@ class MsGraphMcpServer {
     getAttachments: GetAttachments;
     downloadAttachment: DownloadAttachment;
     listMailFolders: ListMailFolders;
+    sendMessage: SendMessage;
     searchContent: SearchContent;
   };
 
@@ -99,6 +101,7 @@ class MsGraphMcpServer {
       getAttachments: new GetAttachments(this.graphClient, this.resultCache),
       downloadAttachment: new DownloadAttachment(this.graphClient),
       listMailFolders: new ListMailFolders(this.graphClient),
+      sendMessage: new SendMessage(this.graphClient),
       searchContent: new SearchContent(this.graphClient, this.resultCache),
     };
 
@@ -291,6 +294,91 @@ class MsGraphMcpServer {
             },
           },
           {
+            name: 'mcp__msgraph__send_message',
+            description:
+              'Send an email message or create a draft. By default, saves to Drafts folder. ' +
+              'Set sendImmediately=true to send right away. Supports configurable sending mailbox ' +
+              'and "send as" functionality for shared mailbox scenarios.',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                to: {
+                  type: 'array',
+                  items: { type: 'string' },
+                  description: 'Array of recipient email addresses',
+                },
+                cc: {
+                  type: 'array',
+                  items: { type: 'string' },
+                  description: 'Optional: CC recipient email addresses',
+                },
+                bcc: {
+                  type: 'array',
+                  items: { type: 'string' },
+                  description: 'Optional: BCC recipient email addresses',
+                },
+                subject: {
+                  type: 'string',
+                  description: 'Email subject line',
+                },
+                body: {
+                  type: 'string',
+                  description: 'Email body content',
+                },
+                bodyType: {
+                  type: 'string',
+                  enum: ['text', 'html'],
+                  description: 'Body content type (default: text)',
+                  default: 'text',
+                },
+                importance: {
+                  type: 'string',
+                  enum: ['low', 'normal', 'high'],
+                  description: 'Email importance level (default: normal)',
+                  default: 'normal',
+                },
+                sendImmediately: {
+                  type: 'boolean',
+                  description:
+                    'If false, saves to Drafts folder. If true, sends immediately (default: false)',
+                  default: false,
+                },
+                mailbox: {
+                  type: 'string',
+                  description:
+                    'Optional: Email address (UPN) or user ID of shared/delegated mailbox to send from. ' +
+                    "If not specified, uses the authenticated user's own mailbox.",
+                },
+                from: {
+                  type: 'string',
+                  description:
+                    'Optional: Email address to send as (requires "Send as" permission). ' +
+                    'Use this for delegation scenarios where you need to send on behalf of another user.',
+                },
+                attachments: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      name: { type: 'string', description: 'Attachment filename' },
+                      contentType: {
+                        type: 'string',
+                        description: 'MIME type (e.g., application/pdf)',
+                      },
+                      contentBytes: {
+                        type: 'string',
+                        description: 'Base64-encoded file content',
+                      },
+                    },
+                    required: ['name', 'contentType', 'contentBytes'],
+                  },
+                  description: 'Optional: File attachments',
+                },
+              },
+              required: ['to', 'subject', 'body'],
+            },
+          },
+          {
             name: 'mcp__msgraph__search_content',
             description:
               'Search across M365 content (SharePoint, OneDrive) using Microsoft Copilot Retrieval API. ' +
@@ -404,6 +492,18 @@ class MsGraphMcpServer {
           case 'mcp__msgraph__list_mail_folders': {
             const input = args as any;
             const result = await this.tools.listMailFolders.execute(input?.mailbox);
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: JSON.stringify(result, null, 2),
+                },
+              ],
+            };
+          }
+
+          case 'mcp__msgraph__send_message': {
+            const result = await this.tools.sendMessage.execute(args as any);
             return {
               content: [
                 {

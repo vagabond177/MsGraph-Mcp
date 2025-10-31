@@ -260,6 +260,53 @@ export class GraphClient {
   }
 
   /**
+   * Create a draft message (saves to Drafts folder)
+   * @param messageData Message content and recipients
+   * @param mailbox Optional mailbox (UPN or user ID) to send from
+   */
+  async createDraftMessage(messageData: any, mailbox?: string): Promise<any> {
+    const basePath = mailbox ? `/users/${mailbox}` : '/me';
+    const endpoint = `${basePath}/messages`;
+
+    logger.info(
+      `Creating draft message: "${messageData.subject}"${mailbox ? ` from ${mailbox}` : ''}`
+    );
+
+    return this.executeRequest(endpoint, 'POST', messageData);
+  }
+
+  /**
+   * Send a draft message
+   * @param messageId The ID of the draft message to send
+   * @param mailbox Optional mailbox (UPN or user ID)
+   */
+  async sendDraftMessage(messageId: string, mailbox?: string): Promise<void> {
+    const basePath = mailbox ? `/users/${mailbox}` : '/me';
+    const endpoint = `${basePath}/messages/${messageId}/send`;
+
+    logger.info(`Sending message: ${messageId}${mailbox ? ` from ${mailbox}` : ''}`);
+
+    await this.executeRequest(endpoint, 'POST');
+  }
+
+  /**
+   * Send a message directly without saving to Sent Items
+   * Note: This method sends immediately and does not save to Sent Items by default
+   * @param messageData Message content with sendMail format
+   * @param mailbox Optional mailbox (UPN or user ID) to send from
+   */
+  async sendMailDirectly(messageData: any, mailbox?: string): Promise<void> {
+    const basePath = mailbox ? `/users/${mailbox}` : '/me';
+    const endpoint = `${basePath}/sendMail`;
+
+    logger.info(
+      `Sending message directly: "${messageData.message.subject}"${mailbox ? ` from ${mailbox}` : ''}`
+    );
+
+    await this.executeRequest(endpoint, 'POST', messageData);
+  }
+
+  /**
    * Get retry-after value from rate limit error
    */
   private getRetryAfter(error: any): number {

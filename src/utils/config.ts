@@ -52,6 +52,9 @@ function createAuthConfig(): AuthConfig {
     scopes: [
       'https://graph.microsoft.com/Mail.Read',
       'https://graph.microsoft.com/Mail.Read.Shared',
+      'https://graph.microsoft.com/Mail.ReadWrite', // Required for creating/modifying drafts
+      'https://graph.microsoft.com/Mail.Send',
+      'https://graph.microsoft.com/Mail.Send.Shared',
       'https://graph.microsoft.com/User.Read',
       'offline_access', // Required for refresh tokens
     ],
