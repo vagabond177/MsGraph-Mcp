@@ -201,6 +201,40 @@ export class GraphClient {
   }
 
   /**
+   * Get attachments for a specific message
+   * @param messageId The message ID
+   * @param includeContent Whether to include base64 content bytes (default: false for token efficiency)
+   * @param mailbox Optional mailbox (UPN or user ID) for shared/delegated access
+   */
+  async getAttachments(
+    messageId: string,
+    includeContent: boolean = false,
+    mailbox?: string
+  ): Promise<any> {
+    const basePath = mailbox ? `/users/${mailbox}` : '/me';
+
+    // Note: contentBytes is only available on #microsoft.graph.fileAttachment
+    // We can't use $select for it on the base attachment type
+    // When includeContent is false, we select minimal fields for token efficiency
+    // When includeContent is true, we don't use $select so all fields are returned
+
+    let endpoint: string;
+    if (includeContent) {
+      // Don't use $select - fetch all fields including contentBytes for fileAttachments
+      endpoint = `${basePath}/messages/${messageId}/attachments`;
+    } else {
+      // Token efficient - only fetch metadata
+      const select = 'id,name,contentType,size,isInline,lastModifiedDateTime';
+      endpoint = `${basePath}/messages/${messageId}/attachments?$select=${select}`;
+    }
+
+    const response = await this.executeRequest<any>(endpoint);
+
+    // Graph API returns attachments in a 'value' array
+    return response.value || [];
+  }
+
+  /**
    * Execute Copilot Retrieval API request
    * Search across SharePoint, OneDrive, and external items using natural language
    */

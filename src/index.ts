@@ -17,7 +17,14 @@ import { logger } from './utils/logger.js';
 import { GraphAuthenticator } from './auth/graphAuth.js';
 import { GraphClient } from './utils/graphClient.js';
 import { ResultCache } from './utils/resultCache.js';
-import { SearchByEntities, SearchEmails, GetEmail, ListMailFolders } from './tools/mail/index.js';
+import {
+  SearchByEntities,
+  SearchEmails,
+  GetEmail,
+  GetAttachments,
+  DownloadAttachment,
+  ListMailFolders,
+} from './tools/mail/index.js';
 import { SearchContent } from './tools/copilot/index.js';
 
 // Main server class
@@ -30,6 +37,8 @@ class MsGraphMcpServer {
     searchByEntities: SearchByEntities;
     searchEmails: SearchEmails;
     getEmail: GetEmail;
+    getAttachments: GetAttachments;
+    downloadAttachment: DownloadAttachment;
     listMailFolders: ListMailFolders;
     searchContent: SearchContent;
   };
@@ -87,6 +96,8 @@ class MsGraphMcpServer {
       searchByEntities: new SearchByEntities(this.graphClient),
       searchEmails: new SearchEmails(this.graphClient),
       getEmail: new GetEmail(this.graphClient),
+      getAttachments: new GetAttachments(this.graphClient, this.resultCache),
+      downloadAttachment: new DownloadAttachment(this.graphClient),
       listMailFolders: new ListMailFolders(this.graphClient),
       searchContent: new SearchContent(this.graphClient, this.resultCache),
     };
@@ -200,6 +211,69 @@ class MsGraphMcpServer {
             },
           },
           {
+            name: 'mcp__msgraph__get_attachments',
+            description:
+              'Get attachments for a specific email by message ID. Returns token-efficient ' +
+              'metadata by default (name, size, type). Use includeContent=true to cache ' +
+              'attachments and get MCP Resource URIs for accessing full content without token limits. ' +
+              'Use the resource URI with MCP ReadResource to download the actual file.',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                messageId: {
+                  type: 'string',
+                  description: 'The message ID to get attachments for',
+                },
+                includeContent: {
+                  type: 'boolean',
+                  description:
+                    'Cache attachment content and return resource URIs (default: false). ' +
+                    'Set to true when you need to download files. Content is available via ' +
+                    'MCP Resources without consuming tokens in the tool response.',
+                  default: false,
+                },
+                mailbox: {
+                  type: 'string',
+                  description:
+                    'Optional: Email address (UPN) or user ID of shared/delegated mailbox. ' +
+                    "If not specified, retrieves from the authenticated user's own mailbox.",
+                },
+              },
+              required: ['messageId'],
+            },
+          },
+          {
+            name: 'mcp__msgraph__download_attachment',
+            description:
+              'Download email attachment directly to a file. This is the most token-efficient way ' +
+              'to download attachments - the file is written directly to disk and only the file path ' +
+              "is returned (~10 tokens). No content flows through Claude's context.",
+            inputSchema: {
+              type: 'object',
+              properties: {
+                messageId: {
+                  type: 'string',
+                  description: 'The message ID containing the attachment',
+                },
+                attachmentId: {
+                  type: 'string',
+                  description: 'The attachment ID to download (from get_attachments)',
+                },
+                outputPath: {
+                  type: 'string',
+                  description: 'Where to save the file (absolute or relative path)',
+                },
+                mailbox: {
+                  type: 'string',
+                  description:
+                    'Optional: Email address (UPN) or user ID of shared/delegated mailbox. ' +
+                    "If not specified, downloads from the authenticated user's own mailbox.",
+                },
+              },
+              required: ['messageId', 'attachmentId', 'outputPath'],
+            },
+          },
+          {
             name: 'mcp__msgraph__list_mail_folders',
             description:
               'List all mail folders in the mailbox. Returns folder structure with item counts. ' +
@@ -303,6 +377,30 @@ class MsGraphMcpServer {
             };
           }
 
+          case 'mcp__msgraph__get_attachments': {
+            const result = await this.tools.getAttachments.execute(args as any);
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: JSON.stringify(result, null, 2),
+                },
+              ],
+            };
+          }
+
+          case 'mcp__msgraph__download_attachment': {
+            const result = await this.tools.downloadAttachment.execute(args as any);
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: JSON.stringify(result, null, 2),
+                },
+              ],
+            };
+          }
+
           case 'mcp__msgraph__list_mail_folders': {
             const input = args as any;
             const result = await this.tools.listMailFolders.execute(input?.mailbox);
@@ -350,7 +448,7 @@ class MsGraphMcpServer {
   }
 
   /**
-   * Setup MCP Resource handlers for cached search results
+   * Setup MCP Resource handlers for cached search results and attachments
    */
   private setupResourceHandlers(): void {
     // List available resources
@@ -374,6 +472,20 @@ class MsGraphMcpServer {
         }
       }
 
+      // List all cached attachments as resources
+      for (const attachmentId of this.resultCache.listAttachmentIds()) {
+        const attachment = this.resultCache.getAttachment(attachmentId);
+
+        if (attachment) {
+          resources.push({
+            uri: `attachment://${attachmentId}`,
+            name: attachment.name,
+            description: `Email attachment: ${attachment.name} (${attachment.contentType}, ${this.formatBytes(attachment.size)})`,
+            mimeType: attachment.contentType || 'application/octet-stream',
+          });
+        }
+      }
+
       logger.debug(`Listing ${resources.length} cached resources`);
       return { resources };
     });
@@ -384,48 +496,85 @@ class MsGraphMcpServer {
 
       logger.debug(`Reading resource: ${uri}`);
 
-      // Parse URI: copilot://search-{searchId}/result-{index}
-      const match = uri.match(/^copilot:\/\/search-([^/]+)\/result-(\d+)$/);
+      // Check if it's a Copilot search result
+      const copilotMatch = uri.match(/^copilot:\/\/search-([^/]+)\/result-(\d+)$/);
+      if (copilotMatch) {
+        const searchId = copilotMatch[1];
+        const resultIndex = parseInt(copilotMatch[2], 10);
 
-      if (!match) {
-        throw new Error(`Invalid resource URI: ${uri}`);
+        // Get the cached result
+        const hit = this.resultCache.getResult(searchId, resultIndex);
+
+        if (!hit) {
+          throw new Error(`Resource not found: ${uri} (may have expired from cache)`);
+        }
+
+        // Return full details with all extracts
+        const content = {
+          url: hit.webUrl,
+          resourceType: hit.resourceType,
+          sensitivityLabel: hit.sensitivityLabel,
+          metadata: hit.resourceMetadata,
+          extracts: hit.extracts.map(extract => ({
+            text: extract.text,
+            relevanceScore: extract.relevanceScore,
+          })),
+          totalExtracts: hit.extracts.length,
+        };
+
+        logger.debug(`Returning ${hit.extracts.length} extracts for ${hit.webUrl}`);
+
+        return {
+          contents: [
+            {
+              uri,
+              mimeType: 'application/json',
+              text: JSON.stringify(content, null, 2),
+            },
+          ],
+        };
       }
 
-      const searchId = match[1];
-      const resultIndex = parseInt(match[2], 10);
+      // Check if it's an attachment
+      const attachmentMatch = uri.match(/^attachment:\/\/(.+)$/);
+      if (attachmentMatch) {
+        const attachmentId = attachmentMatch[1];
 
-      // Get the cached result
-      const hit = this.resultCache.getResult(searchId, resultIndex);
+        // Get the cached attachment
+        const attachment = this.resultCache.getAttachment(attachmentId);
 
-      if (!hit) {
-        throw new Error(`Resource not found: ${uri} (may have expired from cache)`);
+        if (!attachment) {
+          throw new Error(`Attachment not found: ${uri} (may have expired from cache)`);
+        }
+
+        logger.debug(
+          `Returning attachment ${attachment.name} (${this.formatBytes(attachment.size)})`
+        );
+
+        // Return attachment with full content
+        return {
+          contents: [
+            {
+              uri,
+              mimeType: attachment.contentType || 'application/octet-stream',
+              blob: attachment.contentBytes, // Base64 blob
+            },
+          ],
+        };
       }
 
-      // Return full details with all extracts
-      const content = {
-        url: hit.webUrl,
-        resourceType: hit.resourceType,
-        sensitivityLabel: hit.sensitivityLabel,
-        metadata: hit.resourceMetadata,
-        extracts: hit.extracts.map(extract => ({
-          text: extract.text,
-          relevanceScore: extract.relevanceScore,
-        })),
-        totalExtracts: hit.extracts.length,
-      };
-
-      logger.debug(`Returning ${hit.extracts.length} extracts for ${hit.webUrl}`);
-
-      return {
-        contents: [
-          {
-            uri,
-            mimeType: 'application/json',
-            text: JSON.stringify(content, null, 2),
-          },
-        ],
-      };
+      throw new Error(`Invalid resource URI: ${uri}`);
     });
+  }
+
+  /**
+   * Format bytes to human-readable string
+   */
+  private formatBytes(bytes: number): string {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
   }
 
   /**
