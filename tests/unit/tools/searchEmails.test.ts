@@ -57,10 +57,7 @@ describe('SearchEmails', () => {
         maxResults: 10,
       });
 
-      expect(mockGraphClient.searchMessages).toHaveBeenCalledWith(
-        'from:john@example.com',
-        10
-      );
+      expect(mockGraphClient.searchMessages).toHaveBeenCalledWith('from:john@example.com', 10);
       expect(result).toHaveLength(10);
     });
 
@@ -121,7 +118,7 @@ describe('SearchEmails', () => {
       });
 
       // Verify token efficiency
-      result.forEach((email) => {
+      result.forEach(email => {
         expect(email).toHaveProperty('messageId');
         expect(email).toHaveProperty('subject');
         expect(email).toHaveProperty('from');

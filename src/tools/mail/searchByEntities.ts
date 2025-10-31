@@ -22,13 +22,7 @@ export class SearchByEntities {
    * Search emails for multiple entities in batch
    */
   async execute(input: SearchEmailsByEntitiesInput): Promise<BatchEmailSearchResult> {
-    const {
-      entities,
-      keywords = [],
-      dateFrom,
-      dateTo,
-      maxResultsPerEntity = 5,
-    } = input;
+    const { entities, keywords = [], dateFrom, dateTo, maxResultsPerEntity = 5 } = input;
 
     logger.info(`Searching emails for ${entities.length} entities`);
 
@@ -47,7 +41,7 @@ export class SearchByEntities {
 
     for (let i = 0; i < entities.length; i++) {
       const entity = entities[i];
-      const response = batchResult.responses.find((r) => r.id === i.toString());
+      const response = batchResult.responses.find(r => r.id === i.toString());
 
       if (!response) {
         results[entity] = {
@@ -104,7 +98,7 @@ export class SearchByEntities {
 
     // Add keywords if provided
     if (keywords.length > 0) {
-      const keywordQuery = keywords.map((kw) => this.escapeKql(kw)).join(' OR ');
+      const keywordQuery = keywords.map(kw => this.escapeKql(kw)).join(' OR ');
       kqlParts.push(`(${keywordQuery})`);
     }
 

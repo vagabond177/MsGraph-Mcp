@@ -382,9 +382,7 @@ describe('GraphAuthenticator', () => {
 
     it('should provide meaningful error messages', async () => {
       (fs.readFile as jest.Mock).mockRejectedValue(new Error('File not found'));
-      mockPca.acquireTokenByDeviceCode.mockRejectedValue(
-        new Error('Network connection failed')
-      );
+      mockPca.acquireTokenByDeviceCode.mockRejectedValue(new Error('Network connection failed'));
 
       await expect(authenticator.initialize()).rejects.toThrow(
         /Authentication failed.*Network connection failed/

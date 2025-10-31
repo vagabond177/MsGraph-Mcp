@@ -17,12 +17,7 @@ import { logger } from './utils/logger.js';
 import { GraphAuthenticator } from './auth/graphAuth.js';
 import { GraphClient } from './utils/graphClient.js';
 import { ResultCache } from './utils/resultCache.js';
-import {
-  SearchByEntities,
-  SearchEmails,
-  GetEmail,
-  ListMailFolders,
-} from './tools/mail/index.js';
+import { SearchByEntities, SearchEmails, GetEmail, ListMailFolders } from './tools/mail/index.js';
 import { SearchContent } from './tools/copilot/index.js';
 
 // Main server class
@@ -208,7 +203,8 @@ class MsGraphMcpServer {
               properties: {
                 query: {
                   type: 'string',
-                  description: 'Natural language search query (max 1500 chars, single sentence preferred)',
+                  description:
+                    'Natural language search query (max 1500 chars, single sentence preferred)',
                 },
                 dataSource: {
                   type: 'string',
@@ -218,7 +214,8 @@ class MsGraphMcpServer {
                 },
                 filterExpression: {
                   type: 'string',
-                  description: 'Optional KQL filter (e.g., "FileExtension:pdf" or "LastModifiedTime>=2025-01-01")',
+                  description:
+                    'Optional KQL filter (e.g., "FileExtension:pdf" or "LastModifiedTime>=2025-01-01")',
                 },
                 maxResults: {
                   type: 'number',
@@ -227,7 +224,8 @@ class MsGraphMcpServer {
                 },
                 includeMetadata: {
                   type: 'boolean',
-                  description: 'Include file metadata (title, author, dates, etc. - default: false)',
+                  description:
+                    'Include file metadata (title, author, dates, etc. - default: false)',
                   default: false,
                 },
               },
@@ -239,7 +237,7 @@ class MsGraphMcpServer {
     });
 
     // Handle tool calls
-    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    this.server.setRequestHandler(CallToolRequestSchema, async request => {
       const { name, arguments: args } = request.params;
 
       try {
@@ -355,7 +353,7 @@ class MsGraphMcpServer {
     });
 
     // Read a specific resource
-    this.server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+    this.server.setRequestHandler(ReadResourceRequestSchema, async request => {
       const uri = request.params.uri;
 
       logger.debug(`Reading resource: ${uri}`);
@@ -383,7 +381,7 @@ class MsGraphMcpServer {
         resourceType: hit.resourceType,
         sensitivityLabel: hit.sensitivityLabel,
         metadata: hit.resourceMetadata,
-        extracts: hit.extracts.map((extract) => ({
+        extracts: hit.extracts.map(extract => ({
           text: extract.text,
           relevanceScore: extract.relevanceScore,
         })),
@@ -408,7 +406,7 @@ class MsGraphMcpServer {
    * Setup error handlers
    */
   private setupErrorHandlers(): void {
-    this.server.onerror = (error) => {
+    this.server.onerror = error => {
       logger.error('Server error:', error);
     };
 
@@ -439,7 +437,7 @@ class MsGraphMcpServer {
 
 // Start the server
 const server = new MsGraphMcpServer();
-server.start().catch((error) => {
+server.start().catch(error => {
   logger.error('Fatal error:', error);
   process.exit(1);
 });

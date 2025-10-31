@@ -273,7 +273,8 @@ describe('ResultProcessor', () => {
 
   describe('truncateText', () => {
     it('should truncate at word boundary when possible', () => {
-      const longText = 'This is a very long text that needs to be truncated at a word boundary not in the middle of a word and keeps going on and on and on for many many characters';
+      const longText =
+        'This is a very long text that needs to be truncated at a word boundary not in the middle of a word and keeps going on and on and on for many many characters';
       const message = createMockMessage({
         bodyPreview: longText,
       });

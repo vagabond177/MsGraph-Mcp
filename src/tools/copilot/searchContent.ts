@@ -80,9 +80,7 @@ export class SearchContent {
 
         // Get highest relevance score
         const relevance =
-          hit.extracts.length > 0
-            ? Math.max(...hit.extracts.map((e) => e.relevanceScore))
-            : 0;
+          hit.extracts.length > 0 ? Math.max(...hit.extracts.map(e => e.relevanceScore)) : 0;
 
         // Create brief excerpt from top extract
         const briefExcerpt = this.createBriefExcerpt(hit.extracts);
@@ -188,10 +186,9 @@ export class SearchContent {
       return;
     }
 
-    const avgRelevance =
-      results.reduce((sum, r) => sum + r.relevance, 0) / results.length;
-    const resourceTypes = [...new Set(results.map((r) => r.resourceType))];
-    const withSensitivity = results.filter((r) => r.sensitivityLabel).length;
+    const avgRelevance = results.reduce((sum, r) => sum + r.relevance, 0) / results.length;
+    const resourceTypes = [...new Set(results.map(r => r.resourceType))];
+    const withSensitivity = results.filter(r => r.sensitivityLabel).length;
 
     // Estimate tokens (rough): 100 tokens per brief result
     const estimatedTokens = results.length * 100;

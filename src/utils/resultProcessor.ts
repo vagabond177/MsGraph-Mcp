@@ -10,7 +10,8 @@ export class ResultProcessor {
    * Process Graph API message into token-efficient summary
    */
   static processEmailToSummary(message: any): EmailSummary {
-    const from = message.from?.emailAddress?.name || message.from?.emailAddress?.address || 'Unknown';
+    const from =
+      message.from?.emailAddress?.name || message.from?.emailAddress?.address || 'Unknown';
 
     return {
       messageId: message.id,
@@ -78,7 +79,7 @@ export class ResultProcessor {
    * Process array of messages to summaries
    */
   static processEmails(messages: any[]): EmailSummary[] {
-    return messages.map((msg) => this.processEmailToSummary(msg));
+    return messages.map(msg => this.processEmailToSummary(msg));
   }
 
   /**
@@ -119,14 +120,16 @@ export class ResultProcessor {
 
     return {
       ...summary,
-      to: message.toRecipients?.map((r: any) => ({
-        name: r.emailAddress.name,
-        address: r.emailAddress.address,
-      })) || [],
-      cc: message.ccRecipients?.map((r: any) => ({
-        name: r.emailAddress.name,
-        address: r.emailAddress.address,
-      })) || [],
+      to:
+        message.toRecipients?.map((r: any) => ({
+          name: r.emailAddress.name,
+          address: r.emailAddress.address,
+        })) || [],
+      cc:
+        message.ccRecipients?.map((r: any) => ({
+          name: r.emailAddress.name,
+          address: r.emailAddress.address,
+        })) || [],
       body: message.body?.content || '',
       bodyType: message.body?.contentType || 'text',
     };

@@ -193,7 +193,7 @@ describe('ListMailFolders', () => {
       const result = await listFolders.execute();
 
       expect(result).toHaveLength(6);
-      const folderNames = result.map((f) => f.displayName);
+      const folderNames = result.map(f => f.displayName);
       expect(folderNames).toContain('Inbox');
       expect(folderNames).toContain('Sent Items');
       expect(folderNames).toContain('Drafts');

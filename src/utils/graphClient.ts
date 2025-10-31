@@ -28,7 +28,7 @@ export class GraphClient {
    */
   async initialize(): Promise<void> {
     this.client = Client.init({
-      authProvider: async (done) => {
+      authProvider: async done => {
         try {
           const token = await this.authenticator.getAccessToken();
           done(null, token);
@@ -96,11 +96,7 @@ export class GraphClient {
         }
 
         // Other errors - don't retry
-        throw new GraphError(
-          `Graph API request failed: ${error.message}`,
-          error.statusCode,
-          error
-        );
+        throw new GraphError(`Graph API request failed: ${error.message}`, error.statusCode, error);
       }
     }
 
@@ -135,18 +131,14 @@ export class GraphClient {
 
         logger.debug(`Executing batch with ${chunk.length} requests`);
 
-        const result = await this.executeRequest<GraphBatchResult>(
-          '/$batch',
-          'POST',
-          batchRequest
-        );
+        const result = await this.executeRequest<GraphBatchResult>('/$batch', 'POST', batchRequest);
 
         allResponses.push(...result.responses);
       } catch (error) {
         logger.error('Batch request failed:', error);
 
         // Return partial results with errors
-        chunk.forEach((req) => {
+        chunk.forEach(req => {
           allResponses.push({
             id: req.id,
             status: 500,
@@ -175,7 +167,8 @@ export class GraphClient {
    * Get a specific message by ID
    */
   async getMessage(messageId: string, includeBody: boolean = false): Promise<any> {
-    let select = 'id,subject,from,receivedDateTime,bodyPreview,hasAttachments,importance,toRecipients,ccRecipients';
+    let select =
+      'id,subject,from,receivedDateTime,bodyPreview,hasAttachments,importance,toRecipients,ccRecipients';
 
     if (includeBody) {
       select += ',body';
@@ -189,7 +182,8 @@ export class GraphClient {
    * List mail folders
    */
   async listMailFolders(): Promise<any> {
-    const endpoint = '/me/mailFolders?$select=id,displayName,parentFolderId,childFolderCount,unreadItemCount,totalItemCount';
+    const endpoint =
+      '/me/mailFolders?$select=id,displayName,parentFolderId,childFolderCount,unreadItemCount,totalItemCount';
     return this.executeRequest(endpoint);
   }
 
@@ -247,7 +241,7 @@ export class GraphClient {
    * Sleep for specified milliseconds
    */
   private sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   /**

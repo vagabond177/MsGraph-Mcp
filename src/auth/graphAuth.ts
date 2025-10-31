@@ -80,7 +80,7 @@ export class GraphAuthenticator {
   private async authenticateWithDeviceCode(): Promise<void> {
     const deviceCodeRequest: DeviceCodeRequest = {
       scopes: this.authConfig.scopes,
-      deviceCodeCallback: (response) => {
+      deviceCodeCallback: response => {
         logger.info('\n=================================================');
         logger.info('MICROSOFT AUTHENTICATION REQUIRED');
         logger.info('=================================================');
