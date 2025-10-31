@@ -345,7 +345,7 @@ When reading a resource, you get:
 
 ### Cache Behavior
 
-- **TTL:** 15 minutes (configurable)
+- **TTL:** 24 hours (configurable)
 - **Max entries:** 100 searches (configurable)
 - **Eviction:** LRU (Least Recently Used)
 - **Cleanup:** Automatic every 5 minutes

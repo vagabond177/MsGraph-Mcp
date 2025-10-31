@@ -19,8 +19,8 @@ export class ResultCache {
   private readonly ttlMs: number;
   private readonly maxEntries: number;
 
-  constructor(ttlMs: number = 900000, maxEntries: number = 100) {
-    // Default: 15 minutes TTL, max 100 searches
+  constructor(ttlMs: number = 86400000, maxEntries: number = 100) {
+    // Default: 24 hours TTL, max 100 searches
     this.ttlMs = ttlMs;
     this.maxEntries = maxEntries;
 
