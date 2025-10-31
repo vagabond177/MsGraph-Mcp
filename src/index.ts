@@ -20,6 +20,7 @@ import {
   GetEmail,
   ListMailFolders,
 } from './tools/mail/index.js';
+import { SearchContent } from './tools/copilot/index.js';
 
 // Main server class
 class MsGraphMcpServer {
@@ -31,6 +32,7 @@ class MsGraphMcpServer {
     searchEmails: SearchEmails;
     getEmail: GetEmail;
     listMailFolders: ListMailFolders;
+    searchContent: SearchContent;
   };
 
   constructor() {
@@ -82,6 +84,7 @@ class MsGraphMcpServer {
       searchEmails: new SearchEmails(this.graphClient),
       getEmail: new GetEmail(this.graphClient),
       listMailFolders: new ListMailFolders(this.graphClient),
+      searchContent: new SearchContent(this.graphClient),
     };
 
     logger.info('Server initialized successfully');
@@ -184,6 +187,44 @@ class MsGraphMcpServer {
               properties: {},
             },
           },
+          {
+            name: 'mcp__msgraph__search_content',
+            description:
+              'Search across M365 content (SharePoint, OneDrive) using Microsoft Copilot Retrieval API. ' +
+              'Uses natural language queries to find relevant content scattered across your tenant. ' +
+              'Returns text excerpts with relevance scores. Ideal for finding documents, files, and ' +
+              'information when you don\'t know exact locations (e.g., "vendor sponsorship agreements").',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                query: {
+                  type: 'string',
+                  description: 'Natural language search query (max 1500 chars, single sentence preferred)',
+                },
+                dataSource: {
+                  type: 'string',
+                  enum: ['sharePoint', 'oneDriveBusiness', 'externalItem'],
+                  description: 'Where to search (default: sharePoint)',
+                  default: 'sharePoint',
+                },
+                filterExpression: {
+                  type: 'string',
+                  description: 'Optional KQL filter (e.g., "FileExtension:pdf" or "LastModifiedTime>=2025-01-01")',
+                },
+                maxResults: {
+                  type: 'number',
+                  description: 'Maximum results to return (1-25, default: 10)',
+                  default: 10,
+                },
+                includeMetadata: {
+                  type: 'boolean',
+                  description: 'Include file metadata (title, author, dates, etc. - default: false)',
+                  default: false,
+                },
+              },
+              required: ['query'],
+            },
+          },
         ],
       };
     });
@@ -232,6 +273,18 @@ class MsGraphMcpServer {
 
           case 'mcp__msgraph__list_mail_folders': {
             const result = await this.tools.listMailFolders.execute();
+            return {
+              content: [
+                {
+                  type: 'text',
+                  text: JSON.stringify(result, null, 2),
+                },
+              ],
+            };
+          }
+
+          case 'mcp__msgraph__search_content': {
+            const result = await this.tools.searchContent.execute(args as any);
             return {
               content: [
                 {

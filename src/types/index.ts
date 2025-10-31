@@ -161,3 +161,70 @@ export class RateLimitError extends Error {
     this.name = 'RateLimitError';
   }
 }
+
+// ============================================================================
+// Copilot Retrieval API Types
+// ============================================================================
+
+export type CopilotDataSource = 'sharePoint' | 'oneDriveBusiness' | 'externalItem';
+
+export interface CopilotDataSourceConfiguration {
+  externalItem?: {
+    connectionId: string;
+  };
+}
+
+export interface CopilotRetrievalRequest {
+  queryString: string;
+  dataSource: CopilotDataSource;
+  dataSourceConfiguration?: CopilotDataSourceConfiguration;
+  filterExpression?: string;
+  resourceMetadata?: string[];
+  maximumNumberOfResults?: number;
+}
+
+export interface CopilotRetrievalExtract {
+  text: string;
+  relevanceScore: number;
+}
+
+export type CopilotResourceType = 'listItem' | 'externalItem';
+
+export interface CopilotSensitivityLabel {
+  id?: string;
+  name?: string;
+  color?: string;
+  description?: string;
+}
+
+export interface CopilotRetrievalHit {
+  webUrl: string;
+  extracts: CopilotRetrievalExtract[];
+  resourceType: CopilotResourceType;
+  resourceMetadata?: Record<string, unknown>;
+  sensitivityLabel?: CopilotSensitivityLabel;
+}
+
+export interface CopilotRetrievalResponse {
+  retrievalHits: CopilotRetrievalHit[];
+}
+
+// Tool input for Copilot search
+export interface CopilotSearchInput {
+  query: string;
+  dataSource?: CopilotDataSource;
+  filterExpression?: string;
+  maxResults?: number;
+  includeMetadata?: boolean;
+}
+
+// Simplified result for MCP tool return
+export interface CopilotSearchResult {
+  source: string;
+  url: string;
+  relevance: number;
+  excerpt: string;
+  resourceType: string;
+  metadata?: Record<string, unknown>;
+  sensitivityLabel?: string;
+}

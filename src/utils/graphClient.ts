@@ -9,6 +9,8 @@ import {
   GraphError,
   RateLimitError,
   RateLimitInfo,
+  CopilotRetrievalRequest,
+  CopilotRetrievalResponse,
 } from '../types/index.js';
 import { GraphAuthenticator } from '../auth/graphAuth.js';
 import { logger } from './logger.js';
@@ -193,6 +195,31 @@ export class GraphClient {
   async listMailFolders(): Promise<any> {
     const endpoint = '/me/mailFolders?$select=id,displayName,parentFolderId,childFolderCount,unreadItemCount,totalItemCount';
     return this.executeRequest(endpoint);
+  }
+
+  /**
+   * Execute Copilot Retrieval API request
+   * Search across SharePoint, OneDrive, and external items using natural language
+   */
+  async copilotRetrieval(request: CopilotRetrievalRequest): Promise<CopilotRetrievalResponse> {
+    logger.info(`Copilot retrieval: "${request.queryString}" on ${request.dataSource}`);
+
+    // Use v1.0 endpoint (also available in beta)
+    const endpoint = '/v1.0/copilot/retrieval';
+
+    try {
+      const response = await this.executeRequest<CopilotRetrievalResponse>(
+        endpoint,
+        'POST',
+        request
+      );
+
+      logger.info(`Found ${response.retrievalHits?.length || 0} retrieval hits`);
+      return response;
+    } catch (error: any) {
+      logger.error('Copilot retrieval failed:', error);
+      throw error;
+    }
   }
 
   /**
