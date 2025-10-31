@@ -88,7 +88,7 @@ class MsGraphMcpServer {
       searchByEntities: new SearchByEntities(this.graphClient),
       searchEmails: new SearchEmails(this.graphClient),
       getEmail: new GetEmail(this.graphClient),
-      getAttachments: new GetAttachments(this.graphClient),
+      getAttachments: new GetAttachments(this.graphClient, this.resultCache),
       listMailFolders: new ListMailFolders(this.graphClient),
       searchContent: new SearchContent(this.graphClient, this.resultCache),
     };
@@ -205,8 +205,9 @@ class MsGraphMcpServer {
             name: 'mcp__msgraph__get_attachments',
             description:
               'Get attachments for a specific email by message ID. Returns token-efficient ' +
-              'metadata by default (name, size, type). Use includeContent=true to download ' +
-              'base64-encoded file content (warning: may consume many tokens for large files).',
+              'metadata by default (name, size, type). Use includeContent=true to cache ' +
+              'attachments and get MCP Resource URIs for accessing full content without token limits. ' +
+              'Use the resource URI with MCP ReadResource to download the actual file.',
             inputSchema: {
               type: 'object',
               properties: {
@@ -217,8 +218,9 @@ class MsGraphMcpServer {
                 includeContent: {
                   type: 'boolean',
                   description:
-                    'Include base64-encoded file content (default: false for token efficiency). ' +
-                    'Only set to true when you need to download the actual file.',
+                    'Cache attachment content and return resource URIs (default: false). ' +
+                    'Set to true when you need to download files. Content is available via ' +
+                    'MCP Resources without consuming tokens in the tool response.',
                   default: false,
                 },
                 mailbox: {
@@ -394,7 +396,7 @@ class MsGraphMcpServer {
   }
 
   /**
-   * Setup MCP Resource handlers for cached search results
+   * Setup MCP Resource handlers for cached search results and attachments
    */
   private setupResourceHandlers(): void {
     // List available resources
@@ -418,6 +420,20 @@ class MsGraphMcpServer {
         }
       }
 
+      // List all cached attachments as resources
+      for (const attachmentId of this.resultCache.listAttachmentIds()) {
+        const attachment = this.resultCache.getAttachment(attachmentId);
+
+        if (attachment) {
+          resources.push({
+            uri: `attachment://${attachmentId}`,
+            name: attachment.name,
+            description: `Email attachment: ${attachment.name} (${attachment.contentType}, ${this.formatBytes(attachment.size)})`,
+            mimeType: attachment.contentType || 'application/octet-stream',
+          });
+        }
+      }
+
       logger.debug(`Listing ${resources.length} cached resources`);
       return { resources };
     });
@@ -428,48 +444,83 @@ class MsGraphMcpServer {
 
       logger.debug(`Reading resource: ${uri}`);
 
-      // Parse URI: copilot://search-{searchId}/result-{index}
-      const match = uri.match(/^copilot:\/\/search-([^/]+)\/result-(\d+)$/);
+      // Check if it's a Copilot search result
+      const copilotMatch = uri.match(/^copilot:\/\/search-([^/]+)\/result-(\d+)$/);
+      if (copilotMatch) {
+        const searchId = copilotMatch[1];
+        const resultIndex = parseInt(copilotMatch[2], 10);
 
-      if (!match) {
-        throw new Error(`Invalid resource URI: ${uri}`);
+        // Get the cached result
+        const hit = this.resultCache.getResult(searchId, resultIndex);
+
+        if (!hit) {
+          throw new Error(`Resource not found: ${uri} (may have expired from cache)`);
+        }
+
+        // Return full details with all extracts
+        const content = {
+          url: hit.webUrl,
+          resourceType: hit.resourceType,
+          sensitivityLabel: hit.sensitivityLabel,
+          metadata: hit.resourceMetadata,
+          extracts: hit.extracts.map(extract => ({
+            text: extract.text,
+            relevanceScore: extract.relevanceScore,
+          })),
+          totalExtracts: hit.extracts.length,
+        };
+
+        logger.debug(`Returning ${hit.extracts.length} extracts for ${hit.webUrl}`);
+
+        return {
+          contents: [
+            {
+              uri,
+              mimeType: 'application/json',
+              text: JSON.stringify(content, null, 2),
+            },
+          ],
+        };
       }
 
-      const searchId = match[1];
-      const resultIndex = parseInt(match[2], 10);
+      // Check if it's an attachment
+      const attachmentMatch = uri.match(/^attachment:\/\/(.+)$/);
+      if (attachmentMatch) {
+        const attachmentId = attachmentMatch[1];
 
-      // Get the cached result
-      const hit = this.resultCache.getResult(searchId, resultIndex);
+        // Get the cached attachment
+        const attachment = this.resultCache.getAttachment(attachmentId);
 
-      if (!hit) {
-        throw new Error(`Resource not found: ${uri} (may have expired from cache)`);
+        if (!attachment) {
+          throw new Error(`Attachment not found: ${uri} (may have expired from cache)`);
+        }
+
+        logger.debug(`Returning attachment ${attachment.name} (${this.formatBytes(attachment.size)})`);
+
+        // Return attachment with full content
+        return {
+          contents: [
+            {
+              uri,
+              mimeType: attachment.contentType || 'application/octet-stream',
+              blob: attachment.contentBytes, // Base64 blob
+            },
+          ],
+        };
       }
 
-      // Return full details with all extracts
-      const content = {
-        url: hit.webUrl,
-        resourceType: hit.resourceType,
-        sensitivityLabel: hit.sensitivityLabel,
-        metadata: hit.resourceMetadata,
-        extracts: hit.extracts.map(extract => ({
-          text: extract.text,
-          relevanceScore: extract.relevanceScore,
-        })),
-        totalExtracts: hit.extracts.length,
-      };
-
-      logger.debug(`Returning ${hit.extracts.length} extracts for ${hit.webUrl}`);
-
-      return {
-        contents: [
-          {
-            uri,
-            mimeType: 'application/json',
-            text: JSON.stringify(content, null, 2),
-          },
-        ],
-      };
+      throw new Error(`Invalid resource URI: ${uri}`);
     });
+  }
+
+  /**
+   * Format bytes to human-readable string
+   */
+  private formatBytes(bytes: number): string {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
   }
 
   /**

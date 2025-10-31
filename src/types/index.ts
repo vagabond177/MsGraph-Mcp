@@ -68,7 +68,7 @@ export interface AttachmentSummary {
 }
 
 export interface AttachmentDetail extends AttachmentSummary {
-  contentBytes?: string; // Base64 encoded content (only if includeContent=true)
+  resourceUri?: string; // MCP Resource URI to access full content (when includeContent=true)
 }
 
 // ============================================================================

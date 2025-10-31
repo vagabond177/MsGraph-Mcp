@@ -4,13 +4,16 @@
 
 import { GetAttachmentsInput, AttachmentDetail } from '../../types/index.js';
 import { GraphClient } from '../../utils/graphClient.js';
+import { ResultCache } from '../../utils/resultCache.js';
 import { logger } from '../../utils/logger.js';
 
 export class GetAttachments {
   private graphClient: GraphClient;
+  private resultCache: ResultCache;
 
-  constructor(graphClient: GraphClient) {
+  constructor(graphClient: GraphClient, resultCache: ResultCache) {
     this.graphClient = graphClient;
+    this.resultCache = resultCache;
   }
 
   /**
@@ -26,16 +29,24 @@ export class GetAttachments {
       const attachments = await this.graphClient.getAttachments(messageId, includeContent, mailbox);
 
       // Process attachments to token-efficient format
-      const processedAttachments = this.processAttachments(attachments, includeContent);
+      const processedAttachments = this.processAttachments(
+        attachments,
+        includeContent,
+        messageId
+      );
 
       logger.info(`Found ${processedAttachments.length} attachment(s) for email ${messageId}`);
 
       // Log token efficiency info
       if (!includeContent && processedAttachments.length > 0) {
         const totalSize = processedAttachments.reduce((sum, att) => sum + att.size, 0);
-        logger.debug(`Returning metadata only (${processedAttachments.length} attachments, ${this.formatBytes(totalSize)} total)`);
+        logger.debug(
+          `Returning metadata only (${processedAttachments.length} attachments, ${this.formatBytes(totalSize)} total)`
+        );
       } else if (includeContent && processedAttachments.length > 0) {
-        logger.warn('Returning full content - may consume many tokens for large attachments');
+        logger.info(
+          `Cached ${processedAttachments.length} attachment(s) as MCP Resources (token-efficient)`
+        );
       }
 
       return processedAttachments;
@@ -47,8 +58,13 @@ export class GetAttachments {
 
   /**
    * Process Graph API attachments to token-efficient format
+   * When includeContent=true, caches full attachment and returns resource URI instead of contentBytes
    */
-  private processAttachments(attachments: any[], includeContent: boolean): AttachmentDetail[] {
+  private processAttachments(
+    attachments: any[],
+    includeContent: boolean,
+    messageId: string
+  ): AttachmentDetail[] {
     return attachments.map(att => {
       const detail: AttachmentDetail = {
         id: att.id,
@@ -59,9 +75,11 @@ export class GetAttachments {
         lastModifiedDateTime: att.lastModifiedDateTime,
       };
 
-      // Only include content if explicitly requested (token efficiency)
+      // When content is requested, cache it and provide resource URI (token efficient)
       if (includeContent && att.contentBytes) {
-        detail.contentBytes = att.contentBytes;
+        const cacheId = this.resultCache.setAttachment(messageId, att.id, att);
+        detail.resourceUri = `attachment://${cacheId}`;
+        logger.debug(`Cached attachment ${att.name} (${this.formatBytes(att.size)}) as ${detail.resourceUri}`);
       }
 
       return detail;

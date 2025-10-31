@@ -5,6 +5,7 @@
 
 import { GetAttachments } from '../../../src/tools/mail/getAttachments.js';
 import { GraphClient } from '../../../src/utils/graphClient.js';
+import { ResultCache } from '../../../src/utils/resultCache.js';
 import { createMockAttachment, createMockAttachments } from '../../helpers/mockFactories.js';
 
 // Mock dependencies
@@ -21,6 +22,7 @@ jest.mock('../../../src/utils/logger.js', () => ({
 describe('GetAttachments', () => {
   let getAttachments: GetAttachments;
   let mockGraphClient: jest.Mocked<GraphClient>;
+  let resultCache: ResultCache;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -29,7 +31,9 @@ describe('GetAttachments', () => {
       getAttachments: jest.fn(),
     } as any;
 
-    getAttachments = new GetAttachments(mockGraphClient);
+    resultCache = new ResultCache();
+
+    getAttachments = new GetAttachments(mockGraphClient, resultCache);
   });
 
   describe('execute', () => {
@@ -55,7 +59,7 @@ describe('GetAttachments', () => {
       expect(result[0]).not.toHaveProperty('contentBytes');
     });
 
-    it('should include content bytes when includeContent is true', async () => {
+    it('should cache content and return resource URI when includeContent is true', async () => {
       const mockAttachments = createMockAttachments(1);
       mockGraphClient.getAttachments.mockResolvedValue(mockAttachments);
 
@@ -66,8 +70,14 @@ describe('GetAttachments', () => {
 
       expect(mockGraphClient.getAttachments).toHaveBeenCalledWith('msg-123', true, undefined);
       expect(result).toHaveLength(1);
-      expect(result[0]).toHaveProperty('contentBytes');
-      expect(result[0].contentBytes).toBeDefined();
+      expect(result[0]).toHaveProperty('resourceUri');
+      expect(result[0].resourceUri).toMatch(/^attachment:\/\//);
+
+      // Verify attachment was cached
+      const cacheId = result[0].resourceUri!.replace('attachment://', '');
+      const cached = resultCache.getAttachment(cacheId);
+      expect(cached).toBeDefined();
+      expect(cached.name).toBe(mockAttachments[0].name);
     });
 
     it('should handle message with no attachments', async () => {
@@ -155,7 +165,7 @@ describe('GetAttachments', () => {
       expect(estimatedTokens).toBeLessThan(200);
     });
 
-    it('should allow full content when explicitly requested', async () => {
+    it('should use resource URIs instead of content bytes for token efficiency', async () => {
       const largeAttachment = createMockAttachment({
         size: 5000000, // 5MB
         contentBytes: 'A'.repeat(6666667), // Base64 is ~4/3 larger
@@ -168,11 +178,17 @@ describe('GetAttachments', () => {
         includeContent: true,
       });
 
-      expect(result[0].contentBytes).toBeDefined();
-      expect(result[0].contentBytes!.length).toBeGreaterThan(1000000);
+      // Should have resource URI, not contentBytes
+      expect(result[0].resourceUri).toBeDefined();
+      expect(result[0]).not.toHaveProperty('contentBytes');
+
+      // Result should be token-efficient even with includeContent=true
+      const resultString = JSON.stringify(result);
+      const estimatedTokens = Math.ceil(resultString.length / 4);
+      expect(estimatedTokens).toBeLessThan(200);
     });
 
-    it('should warn about large attachments in summary mode', async () => {
+    it('should return size metadata for large attachments', async () => {
       const largeAttachments = [
         createMockAttachment({ size: 10000000, name: 'large-file-1.zip' }),
         createMockAttachment({ size: 20000000, name: 'large-file-2.zip' }),
@@ -207,11 +223,11 @@ describe('GetAttachments', () => {
       );
     });
 
-    it('should support mailbox with includeContent=true', async () => {
+    it('should support mailbox with includeContent=true and cache attachments', async () => {
       const mockAttachments = createMockAttachments(1);
       mockGraphClient.getAttachments.mockResolvedValue(mockAttachments);
 
-      await getAttachments.execute({
+      const result = await getAttachments.execute({
         messageId: 'msg-123',
         includeContent: true,
         mailbox: 'delegate@example.com',
@@ -222,6 +238,8 @@ describe('GetAttachments', () => {
         true,
         'delegate@example.com'
       );
+
+      expect(result[0].resourceUri).toBeDefined();
     });
 
     it('should not pass mailbox when not specified', async () => {

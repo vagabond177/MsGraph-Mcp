@@ -1,6 +1,6 @@
 /**
- * Result cache for Copilot search results
- * Stores full retrieval hits so brief summaries can be returned to Claude,
+ * Result cache for Copilot search results and email attachments
+ * Stores full retrieval hits and attachment content so brief summaries can be returned to Claude,
  * with full details available via MCP Resources
  */
 
@@ -14,13 +14,21 @@ interface CachedSearch {
   results: CopilotRetrievalHit[];
 }
 
+interface CachedAttachment {
+  attachmentId: string;
+  messageId: string;
+  timestamp: number;
+  attachment: any; // Full attachment data including contentBytes
+}
+
 export class ResultCache {
-  private cache: Map<string, CachedSearch> = new Map();
+  private searchCache: Map<string, CachedSearch> = new Map();
+  private attachmentCache: Map<string, CachedAttachment> = new Map();
   private readonly ttlMs: number;
   private readonly maxEntries: number;
 
   constructor(ttlMs: number = 86400000, maxEntries: number = 100) {
-    // Default: 24 hours TTL, max 100 searches
+    // Default: 24 hours TTL, max 100 entries per cache
     this.ttlMs = ttlMs;
     this.maxEntries = maxEntries;
 
@@ -36,15 +44,22 @@ export class ResultCache {
   }
 
   /**
+   * Generate a unique attachment cache ID
+   */
+  generateAttachmentId(messageId: string, attachmentId: string): string {
+    return `${messageId}:${attachmentId}`;
+  }
+
+  /**
    * Store search results
    */
   set(searchId: string, query: string, results: CopilotRetrievalHit[]): void {
     // Check if we need to evict old entries (LRU)
-    if (this.cache.size >= this.maxEntries) {
-      this.evictOldest();
+    if (this.searchCache.size >= this.maxEntries) {
+      this.evictOldestSearch();
     }
 
-    this.cache.set(searchId, {
+    this.searchCache.set(searchId, {
       searchId,
       query,
       timestamp: Date.now(),
@@ -58,7 +73,7 @@ export class ResultCache {
    * Get cached search results
    */
   get(searchId: string): CachedSearch | undefined {
-    const cached = this.cache.get(searchId);
+    const cached = this.searchCache.get(searchId);
 
     if (!cached) {
       return undefined;
@@ -66,12 +81,61 @@ export class ResultCache {
 
     // Check if expired
     if (Date.now() - cached.timestamp > this.ttlMs) {
-      this.cache.delete(searchId);
+      this.searchCache.delete(searchId);
       logger.debug(`Search ${searchId} expired, removed from cache`);
       return undefined;
     }
 
     return cached;
+  }
+
+  /**
+   * Store an attachment with full content
+   */
+  setAttachment(messageId: string, attachmentId: string, attachment: any): string {
+    // Check if we need to evict old entries (LRU)
+    if (this.attachmentCache.size >= this.maxEntries) {
+      this.evictOldestAttachment();
+    }
+
+    const cacheId = this.generateAttachmentId(messageId, attachmentId);
+
+    this.attachmentCache.set(cacheId, {
+      attachmentId: cacheId,
+      messageId,
+      timestamp: Date.now(),
+      attachment,
+    });
+
+    logger.debug(`Cached attachment ${cacheId} (${attachment.name})`);
+    return cacheId;
+  }
+
+  /**
+   * Get cached attachment
+   */
+  getAttachment(cacheId: string): any | undefined {
+    const cached = this.attachmentCache.get(cacheId);
+
+    if (!cached) {
+      return undefined;
+    }
+
+    // Check if expired
+    if (Date.now() - cached.timestamp > this.ttlMs) {
+      this.attachmentCache.delete(cacheId);
+      logger.debug(`Attachment ${cacheId} expired, removed from cache`);
+      return undefined;
+    }
+
+    return cached.attachment;
+  }
+
+  /**
+   * List all cached attachment IDs
+   */
+  listAttachmentIds(): string[] {
+    return Array.from(this.attachmentCache.keys());
   }
 
   /**
@@ -95,7 +159,7 @@ export class ResultCache {
    * List all cached search IDs
    */
   listSearchIds(): string[] {
-    return Array.from(this.cache.keys());
+    return Array.from(this.searchCache.keys());
   }
 
   /**
@@ -110,29 +174,42 @@ export class ResultCache {
    * Clear specific search from cache
    */
   clear(searchId: string): boolean {
-    return this.cache.delete(searchId);
+    return this.searchCache.delete(searchId);
   }
 
   /**
-   * Clear all cached searches
+   * Clear specific attachment from cache
+   */
+  clearAttachment(cacheId: string): boolean {
+    return this.attachmentCache.delete(cacheId);
+  }
+
+  /**
+   * Clear all cached searches and attachments
    */
   clearAll(): void {
-    this.cache.clear();
-    logger.info('Cleared all cached search results');
+    this.searchCache.clear();
+    this.attachmentCache.clear();
+    logger.info('Cleared all cached results');
   }
 
   /**
    * Get cache statistics
    */
-  getStats(): { entries: number; totalResults: number } {
+  getStats(): {
+    searchEntries: number;
+    totalSearchResults: number;
+    attachmentEntries: number;
+  } {
     let totalResults = 0;
-    for (const cached of this.cache.values()) {
+    for (const cached of this.searchCache.values()) {
       totalResults += cached.results.length;
     }
 
     return {
-      entries: this.cache.size,
-      totalResults,
+      searchEntries: this.searchCache.size,
+      totalSearchResults: totalResults,
+      attachmentEntries: this.attachmentCache.size,
     };
   }
 
@@ -141,28 +218,36 @@ export class ResultCache {
    */
   private cleanupExpired(): void {
     const now = Date.now();
-    let removed = 0;
+    let removedSearches = 0;
+    let removedAttachments = 0;
 
-    for (const [searchId, cached] of this.cache.entries()) {
+    for (const [searchId, cached] of this.searchCache.entries()) {
       if (now - cached.timestamp > this.ttlMs) {
-        this.cache.delete(searchId);
-        removed++;
+        this.searchCache.delete(searchId);
+        removedSearches++;
       }
     }
 
-    if (removed > 0) {
-      logger.debug(`Cleaned up ${removed} expired search results`);
+    for (const [attachmentId, cached] of this.attachmentCache.entries()) {
+      if (now - cached.timestamp > this.ttlMs) {
+        this.attachmentCache.delete(attachmentId);
+        removedAttachments++;
+      }
+    }
+
+    if (removedSearches > 0 || removedAttachments > 0) {
+      logger.debug(`Cleaned up ${removedSearches} searches and ${removedAttachments} attachments`);
     }
   }
 
   /**
-   * Evict oldest entry (LRU)
+   * Evict oldest search entry (LRU)
    */
-  private evictOldest(): void {
+  private evictOldestSearch(): void {
     let oldestId: string | null = null;
     let oldestTime = Infinity;
 
-    for (const [searchId, cached] of this.cache.entries()) {
+    for (const [searchId, cached] of this.searchCache.entries()) {
       if (cached.timestamp < oldestTime) {
         oldestTime = cached.timestamp;
         oldestId = searchId;
@@ -170,8 +255,28 @@ export class ResultCache {
     }
 
     if (oldestId) {
-      this.cache.delete(oldestId);
+      this.searchCache.delete(oldestId);
       logger.debug(`Evicted oldest search ${oldestId} (LRU)`);
+    }
+  }
+
+  /**
+   * Evict oldest attachment entry (LRU)
+   */
+  private evictOldestAttachment(): void {
+    let oldestId: string | null = null;
+    let oldestTime = Infinity;
+
+    for (const [attachmentId, cached] of this.attachmentCache.entries()) {
+      if (cached.timestamp < oldestTime) {
+        oldestTime = cached.timestamp;
+        oldestId = attachmentId;
+      }
+    }
+
+    if (oldestId) {
+      this.attachmentCache.delete(oldestId);
+      logger.debug(`Evicted oldest attachment ${oldestId} (LRU)`);
     }
   }
 }
