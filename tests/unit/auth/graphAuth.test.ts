@@ -8,8 +8,6 @@ import { AuthError } from '../../../src/types/index.js';
 import {
   createMockAuthConfig,
   createMockAuthResponse,
-  createMockCachedToken,
-  createExpiredToken,
 } from '../../helpers/mockFactories.js';
 import { promises as fs } from 'fs';
 
@@ -82,7 +80,6 @@ describe('GraphAuthenticator', () => {
 
   describe('initialize', () => {
     it('should use valid cached token', async () => {
-      const cachedToken = createMockCachedToken();
       const mockAccount = { homeAccountId: 'test-account-id' };
       const authResponse = createMockAuthResponse();
 
