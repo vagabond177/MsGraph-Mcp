@@ -96,3 +96,18 @@ export function getTokenStoragePath(): string {
     return `${homeDir}/${configDir}/tokens.json`;
   }
 }
+
+/**
+ * Get MSAL cache storage path for refresh tokens
+ */
+export function getMsalCachePath(): string {
+  const homeDir = process.env.HOME || process.env.USERPROFILE || '';
+  const configDir = '.msgraph-mcp';
+  const platform = process.platform;
+
+  if (platform === 'win32') {
+    return `${homeDir}\\${configDir}\\msal-cache.json`;
+  } else {
+    return `${homeDir}/${configDir}/msal-cache.json`;
+  }
+}
