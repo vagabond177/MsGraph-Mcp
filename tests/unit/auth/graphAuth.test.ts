@@ -296,6 +296,74 @@ describe('GraphAuthenticator', () => {
   });
 
   describe('token caching', () => {
+    it('should create cache plugin with callbacks', () => {
+      // Constructor creates cache plugin - verify it was passed to MSAL
+      expect(MockedPublicClientApplication).toHaveBeenCalledWith({
+        auth: expect.any(Object),
+        cache: {
+          cachePlugin: expect.objectContaining({
+            beforeCacheAccess: expect.any(Function),
+            afterCacheAccess: expect.any(Function),
+          }),
+        },
+      });
+    });
+
+    it('should handle MSAL cache loading in beforeCacheAccess', async () => {
+      const cachePlugin = MockedPublicClientApplication.mock.calls[0]?.[0]?.cache?.cachePlugin;
+      const mockContext: any = {
+        tokenCache: {
+          deserialize: jest.fn(),
+          serialize: jest.fn(() => 'serialized-cache'),
+        },
+        cacheHasChanged: false,
+      };
+
+      (fs.readFile as jest.Mock).mockResolvedValue('cached-data');
+
+      await cachePlugin?.beforeCacheAccess(mockContext);
+
+      expect(fs.readFile).toHaveBeenCalled();
+      expect(mockContext.tokenCache.deserialize).toHaveBeenCalledWith('cached-data');
+    });
+
+    it('should handle MSAL cache saving in afterCacheAccess', async () => {
+      const cachePlugin = MockedPublicClientApplication.mock.calls[0]?.[0]?.cache?.cachePlugin;
+      const mockContext: any = {
+        tokenCache: {
+          deserialize: jest.fn(),
+          serialize: jest.fn(() => 'serialized-cache'),
+        },
+        cacheHasChanged: true,
+      };
+
+      await cachePlugin?.afterCacheAccess(mockContext);
+
+      expect(fs.mkdir).toHaveBeenCalled();
+      expect(fs.writeFile).toHaveBeenCalledWith(
+        expect.any(String),
+        'serialized-cache',
+        { mode: 0o600 }
+      );
+    });
+
+    it('should not save cache if not changed', async () => {
+      const cachePlugin = MockedPublicClientApplication.mock.calls[0]?.[0]?.cache?.cachePlugin;
+      const mockContext: any = {
+        tokenCache: {
+          deserialize: jest.fn(),
+          serialize: jest.fn(),
+        },
+        cacheHasChanged: false,
+      };
+
+      (fs.writeFile as jest.Mock).mockClear();
+
+      await cachePlugin?.afterCacheAccess(mockContext);
+
+      expect(fs.writeFile).not.toHaveBeenCalled();
+    });
+
     it('should load cached token from disk', async () => {
       const mockAccount = { homeAccountId: 'test-account-id' };
       const authResponse = createMockAuthResponse();
