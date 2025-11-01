@@ -5,10 +5,7 @@
 
 import { GraphAuthenticator } from '../../../src/auth/graphAuth.js';
 import { AuthError } from '../../../src/types/index.js';
-import {
-  createMockAuthConfig,
-  createMockAuthResponse,
-} from '../../helpers/mockFactories.js';
+import { createMockAuthConfig, createMockAuthResponse } from '../../helpers/mockFactories.js';
 import { promises as fs } from 'fs';
 
 // Mock dependencies
