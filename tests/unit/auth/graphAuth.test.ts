@@ -340,11 +340,9 @@ describe('GraphAuthenticator', () => {
       await cachePlugin?.afterCacheAccess(mockContext);
 
       expect(fs.mkdir).toHaveBeenCalled();
-      expect(fs.writeFile).toHaveBeenCalledWith(
-        expect.any(String),
-        'serialized-cache',
-        { mode: 0o600 }
-      );
+      expect(fs.writeFile).toHaveBeenCalledWith(expect.any(String), 'serialized-cache', {
+        mode: 0o600,
+      });
     });
 
     it('should not save cache if not changed', async () => {
