@@ -3,7 +3,13 @@
  * Implements persistent token caching with refresh token support
  */
 
-import { PublicClientApplication, DeviceCodeRequest, AuthorizationUrlRequest, AuthorizationCodeRequest, ICachePlugin } from '@azure/msal-node';
+import {
+  PublicClientApplication,
+  DeviceCodeRequest,
+  AuthorizationUrlRequest,
+  AuthorizationCodeRequest,
+  ICachePlugin,
+} from '@azure/msal-node';
 import { promises as fs } from 'fs';
 import { dirname } from 'path';
 import { createServer, IncomingMessage, ServerResponse } from 'http';
@@ -47,7 +53,7 @@ export class GraphAuthenticator {
     const cachePath = getMsalCachePath();
 
     return {
-      beforeCacheAccess: async (cacheContext) => {
+      beforeCacheAccess: async cacheContext => {
         try {
           const data = await fs.readFile(cachePath, 'utf-8');
           cacheContext.tokenCache.deserialize(data);
@@ -57,15 +63,11 @@ export class GraphAuthenticator {
           logger.debug('No MSAL cache found, starting fresh');
         }
       },
-      afterCacheAccess: async (cacheContext) => {
+      afterCacheAccess: async cacheContext => {
         if (cacheContext.cacheHasChanged) {
           try {
             await fs.mkdir(dirname(cachePath), { recursive: true });
-            await fs.writeFile(
-              cachePath,
-              cacheContext.tokenCache.serialize(),
-              { mode: 0o600 }
-            );
+            await fs.writeFile(cachePath, cacheContext.tokenCache.serialize(), { mode: 0o600 });
             logger.debug('Saved MSAL cache to disk');
           } catch (error) {
             logger.warn('Failed to save MSAL cache:', error);
@@ -254,7 +256,7 @@ export class GraphAuthenticator {
       });
 
       // Handle server errors
-      server.on('error', (error) => {
+      server.on('error', error => {
         logger.error('HTTP server error:', error);
         reject(new AuthError(`Server error: ${error.message}`));
       });
@@ -281,12 +283,15 @@ export class GraphAuthenticator {
           this.openBrowser(authUrl);
 
           // Timeout after 5 minutes
-          setTimeout(() => {
-            if (!authCode) {
-              server.close();
-              reject(new AuthError('Authentication timeout - no response received'));
-            }
-          }, 5 * 60 * 1000);
+          setTimeout(
+            () => {
+              if (!authCode) {
+                server.close();
+                reject(new AuthError('Authentication timeout - no response received'));
+              }
+            },
+            5 * 60 * 1000
+          );
         } catch (error) {
           server.close();
           reject(error);
@@ -311,7 +316,7 @@ export class GraphAuthenticator {
       command = `xdg-open "${url}"`;
     }
 
-    exec(command, (error) => {
+    exec(command, error => {
       if (error) {
         logger.warn('Could not open browser automatically:', error.message);
       }

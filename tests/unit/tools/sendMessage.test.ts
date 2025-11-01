@@ -297,7 +297,10 @@ describe('SendMessage', () => {
         expect.any(Object),
         'shared@example.com'
       );
-      expect(mockGraphClient.sendDraftMessage).toHaveBeenCalledWith('draft-131', 'shared@example.com');
+      expect(mockGraphClient.sendDraftMessage).toHaveBeenCalledWith(
+        'draft-131',
+        'shared@example.com'
+      );
     });
   });
 
