@@ -5,12 +5,28 @@
 
 ---
 
+## MANDATORY SOP: Feature Branch Workflow
+
+**⚠️ CRITICAL RULES - NO EXCEPTIONS:**
+
+1. **ALWAYS work on feature branches** - Never commit directly to `main`
+2. **ALL changes must go through Pull Requests** - No exceptions
+3. **Use squash merge** when completing PRs - Keep history clean
+4. **Delete branch after merge** - Prevent branch proliferation
+
+**Violation of these rules will result in:**
+- Failed CI/CD checks
+- Rejected PRs
+- Main branch protection enforcement
+
+---
+
 ## Branch Strategy
 
 **Protected branches:**
-- `main` - Production-ready code, PR-only, no direct commits
+- `main` - Production-ready code, PR-only, **ZERO direct commits allowed**
 
-**Working branches:**
+**Working branches (REQUIRED for all work):**
 - `feature/*` - New features (e.g., `feature/email-search`)
 - `fix/*` - Bug fixes (e.g., `fix/auth-token-refresh`)
 - `docs/*` - Documentation updates (e.g., `docs/api-reference`)
@@ -68,9 +84,14 @@ gh pr create --title "Add feature" --body "Description"
 **7. Request review:**
 - At least 1 approver required
 
-**8. Merge:**
-- Squash and merge (preferred)
-- Delete branch after merge
+**8. Complete PR with squash merge:**
+```bash
+# Via GitHub UI: Select "Squash and merge" (REQUIRED)
+# OR via gh CLI:
+gh pr merge --squash --delete-branch
+```
+- **ALWAYS use squash merge** - Consolidates commits into single clean commit
+- **ALWAYS delete branch after merge** - Keeps repository clean
 
 ---
 

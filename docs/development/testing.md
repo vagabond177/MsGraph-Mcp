@@ -155,7 +155,27 @@ npm run test:coverage
 # Ensure module meets 80%+ threshold
 ```
 
-**5. Commit with pre-commit validation**
+**5. Verify MCP tool registration (for new tools only)**
+```bash
+# Build and start server
+npm run build
+npm start
+
+# In Claude Code or MCP Inspector:
+# Ask: "List all available MCP tools from msgraph-mcp"
+# Verify your new tool appears in the list
+
+# OR use MCP Inspector:
+npx @modelcontextprotocol/inspector
+```
+
+**Why this is critical:**
+- Ensures tool is properly registered with MCP server
+- Validates tool definition schema is correct
+- Confirms Claude Code can discover the tool
+- Catches registration issues before PR
+
+**6. Commit with pre-commit validation**
 ```bash
 git add .
 git commit -m "Add myModule with tests"

@@ -52,6 +52,9 @@ function createAuthConfig(): AuthConfig {
     scopes: [
       'https://graph.microsoft.com/Mail.Read',
       'https://graph.microsoft.com/Mail.Read.Shared',
+      'https://graph.microsoft.com/Mail.ReadWrite', // Required for creating/modifying drafts
+      'https://graph.microsoft.com/Mail.Send',
+      'https://graph.microsoft.com/Mail.Send.Shared',
       'https://graph.microsoft.com/User.Read',
       'offline_access', // Required for refresh tokens
     ],
@@ -91,5 +94,20 @@ export function getTokenStoragePath(): string {
     return `${homeDir}\\${configDir}\\tokens.json`;
   } else {
     return `${homeDir}/${configDir}/tokens.json`;
+  }
+}
+
+/**
+ * Get MSAL cache storage path for refresh tokens
+ */
+export function getMsalCachePath(): string {
+  const homeDir = process.env.HOME || process.env.USERPROFILE || '';
+  const configDir = '.msgraph-mcp';
+  const platform = process.platform;
+
+  if (platform === 'win32') {
+    return `${homeDir}\\${configDir}\\msal-cache.json`;
+  } else {
+    return `${homeDir}/${configDir}/msal-cache.json`;
   }
 }

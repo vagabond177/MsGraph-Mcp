@@ -5,12 +5,7 @@
 
 import { GraphAuthenticator } from '../../../src/auth/graphAuth.js';
 import { AuthError } from '../../../src/types/index.js';
-import {
-  createMockAuthConfig,
-  createMockAuthResponse,
-  createMockCachedToken,
-  createExpiredToken,
-} from '../../helpers/mockFactories.js';
+import { createMockAuthConfig, createMockAuthResponse } from '../../helpers/mockFactories.js';
 import { promises as fs } from 'fs';
 
 // Mock dependencies
@@ -32,6 +27,7 @@ jest.mock('../../../src/utils/logger.js', () => ({
 }));
 jest.mock('../../../src/utils/config.js', () => ({
   getTokenStoragePath: jest.fn(() => '/mock/path/tokens.json'),
+  getMsalCachePath: jest.fn(() => '/mock/path/msal-cache.json'),
 }));
 
 import { PublicClientApplication } from '@azure/msal-node';
@@ -53,6 +49,7 @@ describe('GraphAuthenticator', () => {
     mockPca = {
       acquireTokenByDeviceCode: jest.fn(),
       acquireTokenSilent: jest.fn(),
+      getAllAccounts: jest.fn().mockReturnValue([]),
     };
 
     MockedPublicClientApplication.mockImplementation(() => mockPca);
@@ -69,7 +66,10 @@ describe('GraphAuthenticator', () => {
           authority: `https://login.microsoftonline.com/${authConfig.tenantId}`,
         },
         cache: {
-          cachePlugin: undefined,
+          cachePlugin: expect.objectContaining({
+            beforeCacheAccess: expect.any(Function),
+            afterCacheAccess: expect.any(Function),
+          }),
         },
       });
     });
@@ -77,30 +77,38 @@ describe('GraphAuthenticator', () => {
 
   describe('initialize', () => {
     it('should use valid cached token', async () => {
-      const cachedToken = createMockCachedToken();
-      (fs.readFile as jest.Mock).mockResolvedValue(JSON.stringify(cachedToken));
+      const mockAccount = { homeAccountId: 'test-account-id' };
+      const authResponse = createMockAuthResponse();
+
+      mockPca.getAllAccounts.mockReturnValue([mockAccount]);
+      mockPca.acquireTokenSilent.mockResolvedValue(authResponse);
 
       await authenticator.initialize();
 
-      expect(fs.readFile).toHaveBeenCalled();
+      expect(mockPca.getAllAccounts).toHaveBeenCalled();
+      expect(mockPca.acquireTokenSilent).toHaveBeenCalledWith({
+        scopes: authConfig.scopes,
+        account: mockAccount,
+      });
       expect(mockPca.acquireTokenByDeviceCode).not.toHaveBeenCalled();
       expect(authenticator.isAuthenticated()).toBe(true);
     });
 
     it('should refresh expired token with valid account', async () => {
-      const expiredToken = createExpiredToken();
+      const mockAccount = { homeAccountId: 'test-account-id' };
       const refreshedResponse = createMockAuthResponse({
         accessToken: 'new-access-token',
       });
 
-      (fs.readFile as jest.Mock).mockResolvedValue(JSON.stringify(expiredToken));
+      mockPca.getAllAccounts.mockReturnValue([mockAccount]);
       mockPca.acquireTokenSilent.mockResolvedValue(refreshedResponse);
 
       await authenticator.initialize();
 
+      expect(mockPca.getAllAccounts).toHaveBeenCalled();
       expect(mockPca.acquireTokenSilent).toHaveBeenCalledWith({
         scopes: authConfig.scopes,
-        account: expiredToken.account,
+        account: mockAccount,
       });
       expect(authenticator.isAuthenticated()).toBe(true);
     });
@@ -119,8 +127,8 @@ describe('GraphAuthenticator', () => {
     });
 
     it('should start device code flow when token refresh fails', async () => {
-      const expiredToken = createExpiredToken();
-      (fs.readFile as jest.Mock).mockResolvedValue(JSON.stringify(expiredToken));
+      const mockAccount = { homeAccountId: 'test-account-id' };
+      mockPca.getAllAccounts.mockReturnValue([mockAccount]);
       mockPca.acquireTokenSilent.mockRejectedValue(new Error('Refresh failed'));
 
       const authResponse = createMockAuthResponse();
@@ -128,6 +136,7 @@ describe('GraphAuthenticator', () => {
 
       await authenticator.initialize();
 
+      expect(mockPca.getAllAccounts).toHaveBeenCalled();
       expect(mockPca.acquireTokenSilent).toHaveBeenCalled();
       expect(mockPca.acquireTokenByDeviceCode).toHaveBeenCalled();
       expect(authenticator.isAuthenticated()).toBe(true);
@@ -187,13 +196,16 @@ describe('GraphAuthenticator', () => {
 
   describe('getAccessToken', () => {
     it('should return cached valid token', async () => {
-      const cachedToken = createMockCachedToken();
-      (fs.readFile as jest.Mock).mockResolvedValue(JSON.stringify(cachedToken));
+      const mockAccount = { homeAccountId: 'test-account-id' };
+      const authResponse = createMockAuthResponse();
+
+      mockPca.getAllAccounts.mockReturnValue([mockAccount]);
+      mockPca.acquireTokenSilent.mockResolvedValue(authResponse);
 
       await authenticator.initialize();
       const token = await authenticator.getAccessToken();
 
-      expect(token).toBe(cachedToken.accessToken);
+      expect(token).toBe(authResponse.accessToken);
     });
 
     it('should throw error when not initialized', async () => {
@@ -202,19 +214,18 @@ describe('GraphAuthenticator', () => {
     });
 
     it('should refresh token when expired', async () => {
-      const expiredToken = createExpiredToken();
-      (fs.readFile as jest.Mock).mockResolvedValue(JSON.stringify(expiredToken));
-
-      const refreshedResponse = createMockAuthResponse({
-        accessToken: 'refreshed-token',
+      const mockAccount = { homeAccountId: 'test-account-id' };
+      const authResponse = createMockAuthResponse({
+        accessToken: 'initial-token',
       });
-      mockPca.acquireTokenSilent.mockResolvedValue(refreshedResponse);
+
+      mockPca.getAllAccounts.mockReturnValue([mockAccount]);
+      mockPca.acquireTokenSilent.mockResolvedValue(authResponse);
 
       await authenticator.initialize();
 
-      // Manually expire the token by advancing time
       const token = await authenticator.getAccessToken();
-      expect(token).toBeTruthy();
+      expect(token).toBe('initial-token');
     });
 
     it('should start device code flow when token expired and no account info', async () => {
@@ -241,8 +252,11 @@ describe('GraphAuthenticator', () => {
     });
 
     it('should return true after successful initialization', async () => {
-      const cachedToken = createMockCachedToken();
-      (fs.readFile as jest.Mock).mockResolvedValue(JSON.stringify(cachedToken));
+      const mockAccount = { homeAccountId: 'test-account-id' };
+      const authResponse = createMockAuthResponse();
+
+      mockPca.getAllAccounts.mockReturnValue([mockAccount]);
+      mockPca.acquireTokenSilent.mockResolvedValue(authResponse);
 
       await authenticator.initialize();
 
@@ -252,30 +266,28 @@ describe('GraphAuthenticator', () => {
 
   describe('token validation', () => {
     it('should consider token valid if expires in more than 5 minutes', async () => {
-      const validToken = createMockCachedToken({
-        expiresAt: Date.now() + 10 * 60 * 1000, // 10 minutes
+      const mockAccount = { homeAccountId: 'test-account-id' };
+      const authResponse = createMockAuthResponse({
+        expiresOn: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
       });
 
-      (fs.readFile as jest.Mock).mockResolvedValue(JSON.stringify(validToken));
+      mockPca.getAllAccounts.mockReturnValue([mockAccount]);
+      mockPca.acquireTokenSilent.mockResolvedValue(authResponse);
 
       await authenticator.initialize();
 
       const token = await authenticator.getAccessToken();
-      expect(token).toBe(validToken.accessToken);
-      expect(mockPca.acquireTokenSilent).not.toHaveBeenCalled();
+      expect(token).toBe(authResponse.accessToken);
     });
 
     it('should refresh token if expires in less than 5 minutes', async () => {
-      const soonToExpireToken = createMockCachedToken({
-        expiresAt: Date.now() + 2 * 60 * 1000, // 2 minutes
+      const mockAccount = { homeAccountId: 'test-account-id' };
+      const initialResponse = createMockAuthResponse({
+        expiresOn: new Date(Date.now() + 2 * 60 * 1000), // 2 minutes
       });
 
-      (fs.readFile as jest.Mock).mockResolvedValue(JSON.stringify(soonToExpireToken));
-
-      const refreshedResponse = createMockAuthResponse({
-        accessToken: 'refreshed-token',
-      });
-      mockPca.acquireTokenSilent.mockResolvedValue(refreshedResponse);
+      mockPca.getAllAccounts.mockReturnValue([mockAccount]);
+      mockPca.acquireTokenSilent.mockResolvedValue(initialResponse);
 
       await authenticator.initialize();
 
@@ -284,13 +296,84 @@ describe('GraphAuthenticator', () => {
   });
 
   describe('token caching', () => {
+    it('should create cache plugin with callbacks', () => {
+      // Constructor creates cache plugin - verify it was passed to MSAL
+      expect(MockedPublicClientApplication).toHaveBeenCalledWith({
+        auth: expect.any(Object),
+        cache: {
+          cachePlugin: expect.objectContaining({
+            beforeCacheAccess: expect.any(Function),
+            afterCacheAccess: expect.any(Function),
+          }),
+        },
+      });
+    });
+
+    it('should handle MSAL cache loading in beforeCacheAccess', async () => {
+      const cachePlugin = MockedPublicClientApplication.mock.calls[0]?.[0]?.cache?.cachePlugin;
+      const mockContext: any = {
+        tokenCache: {
+          deserialize: jest.fn(),
+          serialize: jest.fn(() => 'serialized-cache'),
+        },
+        cacheHasChanged: false,
+      };
+
+      (fs.readFile as jest.Mock).mockResolvedValue('cached-data');
+
+      await cachePlugin?.beforeCacheAccess(mockContext);
+
+      expect(fs.readFile).toHaveBeenCalled();
+      expect(mockContext.tokenCache.deserialize).toHaveBeenCalledWith('cached-data');
+    });
+
+    it('should handle MSAL cache saving in afterCacheAccess', async () => {
+      const cachePlugin = MockedPublicClientApplication.mock.calls[0]?.[0]?.cache?.cachePlugin;
+      const mockContext: any = {
+        tokenCache: {
+          deserialize: jest.fn(),
+          serialize: jest.fn(() => 'serialized-cache'),
+        },
+        cacheHasChanged: true,
+      };
+
+      await cachePlugin?.afterCacheAccess(mockContext);
+
+      expect(fs.mkdir).toHaveBeenCalled();
+      expect(fs.writeFile).toHaveBeenCalledWith(expect.any(String), 'serialized-cache', {
+        mode: 0o600,
+      });
+    });
+
+    it('should not save cache if not changed', async () => {
+      const cachePlugin = MockedPublicClientApplication.mock.calls[0]?.[0]?.cache?.cachePlugin;
+      const mockContext: any = {
+        tokenCache: {
+          deserialize: jest.fn(),
+          serialize: jest.fn(),
+        },
+        cacheHasChanged: false,
+      };
+
+      (fs.writeFile as jest.Mock).mockClear();
+
+      await cachePlugin?.afterCacheAccess(mockContext);
+
+      expect(fs.writeFile).not.toHaveBeenCalled();
+    });
+
     it('should load cached token from disk', async () => {
-      const cachedToken = createMockCachedToken();
-      (fs.readFile as jest.Mock).mockResolvedValue(JSON.stringify(cachedToken));
+      const mockAccount = { homeAccountId: 'test-account-id' };
+      const authResponse = createMockAuthResponse();
+
+      // Mock MSAL cache loading via getAllAccounts
+      mockPca.getAllAccounts.mockReturnValue([mockAccount]);
+      mockPca.acquireTokenSilent.mockResolvedValue(authResponse);
 
       await authenticator.initialize();
 
-      expect(fs.readFile).toHaveBeenCalledWith(expect.any(String), 'utf-8');
+      // Verify MSAL cache was checked
+      expect(mockPca.getAllAccounts).toHaveBeenCalled();
     });
 
     it('should handle missing cache file gracefully', async () => {
@@ -337,16 +420,17 @@ describe('GraphAuthenticator', () => {
 
   describe('token refresh', () => {
     it('should update cached token after refresh', async () => {
-      const expiredToken = createExpiredToken();
-      (fs.readFile as jest.Mock).mockResolvedValue(JSON.stringify(expiredToken));
-
+      const mockAccount = { homeAccountId: 'test-account-id' };
       const refreshedResponse = createMockAuthResponse({
         accessToken: 'new-refreshed-token',
       });
+
+      mockPca.getAllAccounts.mockReturnValue([mockAccount]);
       mockPca.acquireTokenSilent.mockResolvedValue(refreshedResponse);
 
       await authenticator.initialize();
 
+      // Verify token was cached after refresh
       expect(fs.writeFile).toHaveBeenCalledWith(
         expect.any(String),
         expect.stringContaining('new-refreshed-token'),

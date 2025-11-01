@@ -8,3 +8,4 @@ export { GetEmail } from './getEmail.js';
 export { GetAttachments } from './getAttachments.js';
 export { DownloadAttachment } from './downloadAttachment.js';
 export { ListMailFolders } from './listFolders.js';
+export { SendMessage } from './sendMessage.js';

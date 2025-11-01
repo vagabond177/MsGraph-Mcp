@@ -1,14 +1,14 @@
 /**
  * Authentication layer for Microsoft Graph using OAuth 2.0 Device Code Flow
- * Implements persistent token caching with refresh token support
+ * Implements persistent token caching with refresh token support via MSAL cache plugin
  */
 
-import { PublicClientApplication, DeviceCodeRequest } from '@azure/msal-node';
+import { PublicClientApplication, DeviceCodeRequest, ICachePlugin } from '@azure/msal-node';
 import { promises as fs } from 'fs';
 import { dirname } from 'path';
 import { AuthConfig, AuthError } from '../types/index.js';
 import { logger } from '../utils/logger.js';
-import { getTokenStoragePath } from '../utils/config.js';
+import { getTokenStoragePath, getMsalCachePath } from '../utils/config.js';
 
 interface CachedTokenData {
   accessToken: string;
@@ -25,16 +25,47 @@ export class GraphAuthenticator {
   constructor(authConfig: AuthConfig) {
     this.authConfig = authConfig;
 
-    // Initialize MSAL Public Client Application
+    // Initialize MSAL Public Client Application with persistent cache
     this.pca = new PublicClientApplication({
       auth: {
         clientId: this.authConfig.clientId,
         authority: `https://login.microsoftonline.com/${this.authConfig.tenantId}`,
       },
       cache: {
-        cachePlugin: undefined, // We'll handle caching manually
+        cachePlugin: this.createCachePlugin(),
       },
     });
+  }
+
+  /**
+   * Create MSAL cache plugin for persisting refresh tokens
+   */
+  private createCachePlugin(): ICachePlugin {
+    const cachePath = getMsalCachePath();
+
+    return {
+      beforeCacheAccess: async cacheContext => {
+        try {
+          const data = await fs.readFile(cachePath, 'utf-8');
+          cacheContext.tokenCache.deserialize(data);
+          logger.debug('Loaded MSAL cache from disk');
+        } catch (error) {
+          // Cache file doesn't exist yet, that's okay
+          logger.debug('No MSAL cache found, starting fresh');
+        }
+      },
+      afterCacheAccess: async cacheContext => {
+        if (cacheContext.cacheHasChanged) {
+          try {
+            await fs.mkdir(dirname(cachePath), { recursive: true });
+            await fs.writeFile(cachePath, cacheContext.tokenCache.serialize(), { mode: 0o600 });
+            logger.debug('Saved MSAL cache to disk');
+          } catch (error) {
+            logger.warn('Failed to save MSAL cache:', error);
+          }
+        }
+      },
+    };
   }
 
   /**
@@ -44,31 +75,34 @@ export class GraphAuthenticator {
   async initialize(): Promise<void> {
     logger.info('Initializing authentication...');
 
-    // Try to load cached token
-    await this.loadCachedToken();
+    // First, try to get accounts from MSAL cache (includes refresh tokens)
+    const accounts = await this.pca.getAllAccounts();
 
-    if (this.cachedToken) {
-      // Check if token is still valid
-      if (this.isTokenValid(this.cachedToken)) {
-        logger.info('Using cached access token');
-        this.isInitialized = true;
-        return;
-      }
+    if (accounts.length > 0) {
+      logger.info('Found cached account, attempting silent authentication...');
+      try {
+        const response = await this.pca.acquireTokenSilent({
+          scopes: this.authConfig.scopes,
+          account: accounts[0],
+        });
 
-      // Token expired, try to refresh
-      if (this.cachedToken.account) {
-        logger.info('Access token expired, refreshing...');
-        try {
-          await this.refreshToken();
+        if (response) {
+          this.cachedToken = {
+            accessToken: response.accessToken,
+            expiresAt: response.expiresOn?.getTime() || Date.now() + 3600000,
+            account: response.account,
+          };
+          await this.saveCachedToken();
+          logger.info('Silent authentication successful');
           this.isInitialized = true;
           return;
-        } catch (error) {
-          logger.warn('Token refresh failed, will re-authenticate:', error);
         }
+      } catch (error) {
+        logger.warn('Silent authentication failed, will re-authenticate:', error);
       }
     }
 
-    // No valid cached token, start device code flow
+    // No cached account or silent auth failed, start device code flow
     logger.info('Starting device code authentication...');
     await this.authenticateWithDeviceCode();
     this.isInitialized = true;

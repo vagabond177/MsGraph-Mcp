@@ -61,9 +61,12 @@
 
 **Steps:**
 1. Create tool file
-2. Implement handler function
-3. Register tool in index.ts
-4. Test manually
+2. Write tests (TDD approach)
+3. Implement handler function
+4. Register tool in index.ts
+5. Add required Azure AD permissions (automated)
+6. Test with MCP verification
+7. Verify tool appears in Claude Code
 
 ### Phase 3: Document
 
@@ -216,23 +219,93 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 });
 ```
 
-### Step 4: Test Tool
+### Step 4: Add Required Azure AD Permissions
 
-**Build:**
+**CRITICAL:** Before testing, ensure your tool has the required Microsoft Graph API permissions.
+
+**Automatic permission setup (RECOMMENDED):**
+
 ```bash
-npm run build
+# Get CLIENT_ID from .env file
+CLIENT_ID=$(grep CLIENT_ID .env | cut -d '=' -f2)
+
+# Add required permissions using Azure CLI
+# Example: Adding Calendar.Read delegated permission
+az ad app permission add \
+  --id $CLIENT_ID \
+  --api 00000003-0000-0000-c000-000000000000 \
+  --api-permissions a87076cf-6abd-4600-8e08-d2ce87f0a0df=Scope
+
+# Grant admin consent
+az ad app permission admin-consent --id $CLIENT_ID
 ```
 
-**Start server:**
+**Common Graph API permission IDs:**
+- `Mail.Read` - `810c84a8-4a9e-49e8-ab7b-73bbca54f2e5`
+- `Mail.Read.Shared` - `7b9103a5-4610-446b-9670-80643382c1fa`
+- `Mail.Send` - `e383f46e-2787-4529-855e-0e479a3ffac0`
+- `Mail.Send.Shared` - `a367ab51-6b49-43bf-a716-a1fb06d2a174`
+- `Calendars.Read` - `465a38f9-76ea-45b9-9f34-9e8b0d4b0b42`
+- `Calendars.Read.Shared` - `2b9c4092-424d-4249-948d-b43879977640`
+- `Files.Read.All` - `df85f4d6-205c-4ac5-a5ea-6bf408dba283`
+- `Sites.Read.All` - `205e70e5-aba6-4c52-a976-6d2d46c48043`
+
+**Find permission IDs:**
 ```bash
+# Search for a permission by name
+az ad sp show --id 00000003-0000-0000-c000-000000000000 \
+  --query "oauth2PermissionScopes[?contains(value, 'Calendar')].{Permission:value, ID:id}" \
+  -o table
+```
+
+**Update .env documentation:**
+After adding permissions, update the `.env` file's permission list to document what's granted.
+
+**Update src/utils/config.ts:**
+Add the new scope to the scopes array if it's a new permission category:
+```typescript
+scopes: [
+  'https://graph.microsoft.com/Mail.Read',
+  'https://graph.microsoft.com/Calendars.Read', // NEW
+  'offline_access',
+],
+```
+
+---
+
+### Step 5: Test Tool with MCP Verification
+
+**Build and run:**
+```bash
+npm run build
 npm start
 ```
 
-**Test in Claude Code:**
-1. Start conversation
-2. Ask: "What meetings do I have this week?"
-3. Claude should invoke `mcp__msgraph__list_upcoming_events`
-4. Verify results are correct
+**REQUIRED: Verify MCP tool registration:**
+
+Use the MCP server's own tools to verify registration:
+```bash
+# In a new terminal, use mcp-client to test
+npx @modelcontextprotocol/inspector
+
+# OR test directly with Claude Code:
+# 1. Open Claude Code
+# 2. Run: "List all available MCP tools from msgraph-mcp"
+# 3. Verify your new tool appears in the list
+```
+
+**Manual testing in Claude Code:**
+1. Restart Claude Code (to pick up new server changes)
+2. Start conversation
+3. Ask: "What meetings do I have this week?"
+4. Claude should invoke `mcp__msgraph__list_upcoming_events`
+5. Verify results are correct and token-efficient
+
+**Automated verification (best practice):**
+```bash
+# Write an integration test that verifies tool is registered
+npm test -- --testPathPattern=integration
+```
 
 ---
 

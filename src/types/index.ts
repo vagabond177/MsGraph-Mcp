@@ -114,6 +114,42 @@ export interface ListMailFoldersInput {
   mailbox?: string; // Optional: UPN or user ID for shared/delegated mailbox access
 }
 
+export interface MessageRecipient {
+  emailAddress: string;
+  name?: string;
+}
+
+export interface MessageAttachment {
+  name: string;
+  contentType: string;
+  contentBytes: string; // Base64 encoded content
+}
+
+export interface SendMessageInput {
+  to: string[]; // Array of email addresses
+  cc?: string[]; // Optional CC recipients
+  bcc?: string[]; // Optional BCC recipients
+  subject: string;
+  body: string;
+  bodyType?: 'text' | 'html'; // Default: 'text'
+  importance?: 'low' | 'normal' | 'high'; // Default: 'normal'
+  sendImmediately?: boolean; // If false, saves to Drafts (default: false)
+  mailbox?: string; // Optional: UPN or user ID to send from (shared mailbox)
+  from?: string; // Optional: Email address to send as (requires "Send as" permission)
+  attachments?: MessageAttachment[]; // Optional file attachments
+}
+
+export interface SendMessageResult {
+  messageId: string;
+  status: 'draft' | 'sent';
+  subject: string;
+  recipients: {
+    to: string[];
+    cc?: string[];
+    bcc?: string[];
+  };
+}
+
 // ============================================================================
 // Graph API Types
 // ============================================================================
